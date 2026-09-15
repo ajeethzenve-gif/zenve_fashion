@@ -19,6 +19,21 @@ export const JournalSection: React.FC = () => {
     return null;
   }
 
+  // Helper to ensure optimal focal point framing for journal article images
+  const getImagePosition = (slug: string) => {
+    if (slug === 'royal-pets-indian-history') return 'object-top sm:object-[center_15%]';
+    if (slug === 'craftsmanship-behind-zari' || slug === 'twin-edit-styling-notes') return 'object-top';
+    return 'object-center';
+  };
+
+  // Helper to guarantee cache-busted or updated asset paths
+  const getArticleImage = (art: Article) => {
+    if (art.slug === 'sustainable-luxury-philosophy') {
+      return '/images/journal/zero-waste-silk-craft.jpg';
+    }
+    return art.image;
+  };
+
   return (
     <section className="w-full bg-[#002B1D] py-16 sm:py-24 border-b border-[#E4BD5A]/15">
       <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-12">
@@ -53,9 +68,9 @@ export const JournalSection: React.FC = () => {
               {/* Image Frame */}
               <div className="relative aspect-[16/10] w-full overflow-hidden bg-[#001C13] border border-[#E4BD5A]/20 transition-all duration-300 group-hover:border-[#E4BD5A]/50 group-hover:shadow-luxury-green">
                 <img
-                  src={art.image}
+                  src={getArticleImage(art)}
                   alt={art.title}
-                  className="w-full h-full object-cover object-center transition-transform duration-700 ease-out group-hover:scale-105 image-crisp"
+                  className={`w-full h-full object-cover ${getImagePosition(art.slug)} transition-transform duration-700 ease-out group-hover:scale-105 image-crisp`}
                 />
               </div>
 

@@ -128,7 +128,7 @@ export const JournalDetail: React.FC = () => {
                     <img
                       src={rel.image}
                       alt={rel.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                      className={`w-full h-full object-cover ${rel.slug === 'royal-pets-indian-history' ? 'object-top' : 'object-center'} group-hover:scale-105 transition-transform`}
                     />
                   </div>
                   <p className="text-[9px] uppercase tracking-widest text-[#E4BD5A]">

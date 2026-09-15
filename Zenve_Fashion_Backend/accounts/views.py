@@ -159,7 +159,7 @@ class RegisterAPIView(APIView):
                     password=password,
                 )
 
-                customer_role = Role.objects.get(name="Customer")
+                customer_role, _ = Role.objects.get_or_create(name="Customer", defaults={"description": "Standard atelier client"})
                 UserRole.objects.create(user=user, role=customer_role)
                 Customer.objects.create(
                     user=user,
@@ -207,7 +207,7 @@ class RegisterAPIView(APIView):
                     password=serializer.validated_data["password"]
                 )
 
-                customer_role = Role.objects.get(name="Customer")
+                customer_role, _ = Role.objects.get_or_create(name="Customer", defaults={"description": "Standard atelier client"})
 
                 UserRole.objects.create(
                     user=user,
@@ -562,9 +562,7 @@ class GoogleLoginAPIView(APIView):
 
             # Get Customer Role
 
-            customer_role = Role.objects.get(
-                name="Customer"
-            )
+            customer_role, _ = Role.objects.get_or_create(name="Customer", defaults={"description": "Standard atelier client"})
 
 
 

@@ -252,7 +252,7 @@ class Command(BaseCommand):
                     "True luxury cannot afford waste. By drafting companion pieces from the exact cuttings of our guardian gowns, zero virgin silk goes to landfills.",
                     "Our circular approach honors both the artisan's labor and the environment."
                 ],
-                "image": "/images/journal/sustainable-luxury-philosophy.jpg",
+                "image": "/images/journal/zero-waste-silk-craft.jpg",
                 "author": "Sustainability Desk",
                 "published_at": "2025-11-30",
                 "tags": ["Sustainability", "Zero Waste", "Philosophy", "Atelier"],
