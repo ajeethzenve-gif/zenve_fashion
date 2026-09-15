@@ -89,6 +89,10 @@ export const Login: React.FC<LoginProps> = ({
     clearError,
   } = useAuthStore();
 
+  React.useEffect(() => {
+    clearError();
+  }, [clearError]);
+
   const navigate = useNavigate();
   const location = useLocation();
 

@@ -11,6 +11,10 @@ export const Register: React.FC = () => {
   const { register, isLoading, error, clearError } = useAuthStore();
   const navigate = useNavigate();
 
+  React.useEffect(() => {
+    clearError();
+  }, [clearError]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     clearError();

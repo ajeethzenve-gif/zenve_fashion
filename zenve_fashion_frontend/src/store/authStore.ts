@@ -107,6 +107,17 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'zenve-auth-storage',
+      partialize: (state) => ({
+        user: state.user,
+        token: state.token,
+        isAuthenticated: state.isAuthenticated,
+      }),
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          state.error = null;
+          state.isLoading = false;
+        }
+      },
     }
   )
 );
