@@ -50,6 +50,9 @@ export const Login: React.FC<LoginProps> = ({
   const [isVerifyingOtp, setIsVerifyingOtp] =
     useState(false);
 
+  const [mobileError, setMobileError] =
+    useState<string | null>(null);
+
 
   const [isForgotPassword, setIsForgotPassword] =
     useState(defaultForgotPassword);
@@ -132,10 +135,12 @@ export const Login: React.FC<LoginProps> = ({
 
   const handleSendMobileOtp = async () => {
     clearError();
+    setMobileError(null);
 
     const cleanPhone = phone.trim();
 
     if (!cleanPhone) {
+      setMobileError('Please enter your mobile phone number.');
       return;
     }
 
@@ -147,9 +152,10 @@ export const Login: React.FC<LoginProps> = ({
     const validPhone =
       /^(\+91|91)?[6-9]\d{9}$/.test(
         phoneNumber
-      );
+      ) || phoneNumber.length >= 10;
 
     if (!validPhone) {
+      setMobileError('Please enter a valid 10-digit mobile number.');
       return;
     }
 
@@ -163,6 +169,11 @@ export const Login: React.FC<LoginProps> = ({
       setOtpSent(true);
       setOtp('');
     } catch (err: any) {
+      const msg =
+        err.response?.data?.message ||
+        err.message ||
+        'Failed to send OTP. Please try again.';
+      setMobileError(msg);
       console.error(
         'Send mobile OTP error:',
         err
@@ -176,30 +187,45 @@ export const Login: React.FC<LoginProps> = ({
 
   const handleVerifyMobileOtp = async () => {
     clearError();
+    setMobileError(null);
 
     if (!phone.trim()) {
+      setMobileError('Please enter your mobile phone number.');
       return;
     }
 
     if (otp.length !== 6) {
+      setMobileError('Please enter the 6-digit verification code.');
       return;
     }
 
     setIsVerifyingOtp(true);
 
     try {
-      const success =
+      const res =
         await authService.verifyMobileOtp(
           phone.trim(),
           otp
         );
 
-      if (success) {
+      if (res && res.token) {
+        useAuthStore.setState({
+          user: res.user,
+          token: res.token,
+          isAuthenticated: true,
+          isLoading: false,
+        });
+
         navigate(from, {
           replace: true,
         });
       }
     } catch (err: any) {
+      const msg =
+        err.response?.data?.message ||
+        err.message ||
+        'Invalid or expired OTP. Please check and try again.';
+      setMobileError(msg);
       console.error(
         'Verify mobile OTP error:',
         err
@@ -474,380 +500,380 @@ export const Login: React.FC<LoginProps> = ({
             {recoveryStep ===
               'request_otp' && (
 
-              <div className="space-y-6">
+                <div className="space-y-6">
 
-                <div className="text-center space-y-2">
+                  <div className="text-center space-y-2">
 
-                  <div className="w-12 h-12 mx-auto rounded-full bg-[#002418] border border-[#E4BD5A]/40 flex items-center justify-center">
+                    <div className="w-12 h-12 mx-auto rounded-full bg-[#002418] border border-[#E4BD5A]/40 flex items-center justify-center">
 
-                    <KeyRound className="w-6 h-6 text-[#E4BD5A]" />
-
-                  </div>
-
-                  <h1 className="font-serif text-2xl sm:text-3xl text-[#F5F0DF]">
-                    Recover Atelier Access
-                  </h1>
-
-                  <p className="text-xs text-[#B8B9A8]">
-                    Enter your registered email address to receive a secure verification OTP.
-                  </p>
-
-                </div>
-
-                {recoveryError && (
-
-                  <div className="p-3.5 bg-red-950/70 border border-red-500/50 text-red-200 text-xs flex items-start space-x-2">
-
-                    <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
-
-                    <span>
-                      {recoveryError}
-                    </span>
-
-                  </div>
-
-                )}
-
-                <form
-                  onSubmit={
-                    handleSendPasswordResetOtp
-                  }
-                  className="space-y-4 text-xs"
-                >
-
-                  <div>
-
-                    <label className="block tracking-wider uppercase text-[#B8B9A8] mb-1.5">
-                      Registered Email Address
-                    </label>
-
-                    <div className="relative">
-
-                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#E4BD5A]" />
-
-                      <input
-                        type="email"
-                        required
-                        value={
-                          recoveryEmail
-                        }
-                        onChange={(e) => {
-                          setRecoveryEmail(
-                            e.target.value
-                          );
-
-                          setRecoveryError(
-                            null
-                          );
-                        }}
-                        className="w-full bg-[#002B1D] border border-[#E4BD5A]/30 pl-10 pr-3 py-3 text-xs text-[#F5F0DF] focus:outline-none focus:border-[#E4BD5A]"
-                        placeholder="name@example.com"
-                      />
+                      <KeyRound className="w-6 h-6 text-[#E4BD5A]" />
 
                     </div>
 
+                    <h1 className="font-serif text-2xl sm:text-3xl text-[#F5F0DF]">
+                      Recover Atelier Access
+                    </h1>
+
+                    <p className="text-xs text-[#B8B9A8]">
+                      Enter your registered email address to receive a secure verification OTP.
+                    </p>
+
                   </div>
 
-                  <button
-                    type="submit"
-                    disabled={
-                      isSubmittingRecovery
+                  {recoveryError && (
+
+                    <div className="p-3.5 bg-red-950/70 border border-red-500/50 text-red-200 text-xs flex items-start space-x-2">
+
+                      <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
+
+                      <span>
+                        {recoveryError}
+                      </span>
+
+                    </div>
+
+                  )}
+
+                  <form
+                    onSubmit={
+                      handleSendPasswordResetOtp
                     }
-                    className="w-full btn-gold py-3.5 text-xs tracking-[0.2em] flex items-center justify-center space-x-2"
+                    className="space-y-4 text-xs"
                   >
 
-                    <span>
-                      {isSubmittingRecovery
-                        ? 'SENDING OTP...'
-                        : 'SEND VERIFICATION OTP'}
-                    </span>
+                    <div>
 
-                    <ArrowRight className="w-4 h-4" />
+                      <label className="block tracking-wider uppercase text-[#B8B9A8] mb-1.5">
+                        Registered Email Address
+                      </label>
 
-                  </button>
+                      <div className="relative">
 
-                </form>
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#E4BD5A]" />
 
-              </div>
-            )}
+                        <input
+                          type="email"
+                          required
+                          value={
+                            recoveryEmail
+                          }
+                          onChange={(e) => {
+                            setRecoveryEmail(
+                              e.target.value
+                            );
+
+                            setRecoveryError(
+                              null
+                            );
+                          }}
+                          className="w-full bg-[#002B1D] border border-[#E4BD5A]/30 pl-10 pr-3 py-3 text-xs text-[#F5F0DF] focus:outline-none focus:border-[#E4BD5A]"
+                          placeholder="name@example.com"
+                        />
+
+                      </div>
+
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={
+                        isSubmittingRecovery
+                      }
+                      className="w-full btn-gold py-3.5 text-xs tracking-[0.2em] flex items-center justify-center space-x-2"
+                    >
+
+                      <span>
+                        {isSubmittingRecovery
+                          ? 'SENDING OTP...'
+                          : 'SEND VERIFICATION OTP'}
+                      </span>
+
+                      <ArrowRight className="w-4 h-4" />
+
+                    </button>
+
+                  </form>
+
+                </div>
+              )}
 
 
             {recoveryStep ===
               'verify_and_reset' && (
 
-              <div className="space-y-6">
+                <div className="space-y-6">
 
-                <div className="text-center space-y-2">
+                  <div className="text-center space-y-2">
 
-                  <div className="w-12 h-12 mx-auto rounded-full bg-[#002418] border border-[#E4BD5A]/40 flex items-center justify-center">
+                    <div className="w-12 h-12 mx-auto rounded-full bg-[#002418] border border-[#E4BD5A]/40 flex items-center justify-center">
 
-                    <ShieldCheck className="w-6 h-6 text-[#E4BD5A]" />
+                      <ShieldCheck className="w-6 h-6 text-[#E4BD5A]" />
 
-                  </div>
+                    </div>
 
-                  <h1 className="font-serif text-2xl sm:text-3xl text-[#F5F0DF]">
-                    Update Password
-                  </h1>
+                    <h1 className="font-serif text-2xl sm:text-3xl text-[#F5F0DF]">
+                      Update Password
+                    </h1>
 
-                  <p className="text-xs text-[#B8B9A8]">
-                    Enter the OTP sent to{' '}
-                    <span className="text-[#E4BD5A]">
-                      {recoveryEmail}
-                    </span>
-                  </p>
-
-                </div>
-
-                {recoveryError && (
-
-                  <div className="p-3.5 bg-red-950/70 border border-red-500/50 text-red-200 text-xs flex items-start space-x-2">
-
-                    <AlertCircle className="w-4 h-4 text-red-400" />
-
-                    <span>
-                      {recoveryError}
-                    </span>
+                    <p className="text-xs text-[#B8B9A8]">
+                      Enter the OTP sent to{' '}
+                      <span className="text-[#E4BD5A]">
+                        {recoveryEmail}
+                      </span>
+                    </p>
 
                   </div>
 
-                )}
+                  {recoveryError && (
 
-                <form
-                  onSubmit={
-                    handleUpdatePassword
-                  }
-                  className="space-y-4 text-xs"
-                >
+                    <div className="p-3.5 bg-red-950/70 border border-red-500/50 text-red-200 text-xs flex items-start space-x-2">
+
+                      <AlertCircle className="w-4 h-4 text-red-400" />
+
+                      <span>
+                        {recoveryError}
+                      </span>
+
+                    </div>
+
+                  )}
+
+                  <form
+                    onSubmit={
+                      handleUpdatePassword
+                    }
+                    className="space-y-4 text-xs"
+                  >
 
 
-                  <div>
+                    <div>
 
-                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center justify-between mb-1.5">
 
-                      <label className="block tracking-wider uppercase text-[#B8B9A8]">
-                        Verification OTP
+                        <label className="block tracking-wider uppercase text-[#B8B9A8]">
+                          Verification OTP
+                        </label>
+
+                        <button
+                          type="button"
+                          onClick={
+                            handleResendPasswordOtp
+                          }
+                          className="text-[11px] text-[#E4BD5A] hover:underline flex items-center space-x-1 cursor-pointer"
+                        >
+
+                          <RotateCcw className="w-3 h-3" />
+
+                          <span>
+                            Resend OTP
+                          </span>
+
+                        </button>
+
+                      </div>
+
+                      <div className="relative">
+
+                        <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#E4BD5A]" />
+
+                        <input
+                          type="text"
+                          maxLength={6}
+                          required
+                          value={
+                            recoveryOtp
+                          }
+                          onChange={(e) =>
+                            setRecoveryOtp(
+                              e.target.value.replace(
+                                /\D/g,
+                                ''
+                              )
+                            )
+                          }
+                          className="w-full bg-[#002B1D] border border-[#E4BD5A]/30 pl-10 pr-3 py-3 text-xs text-[#F5F0DF] font-mono tracking-[0.3em] focus:outline-none focus:border-[#E4BD5A]"
+                          placeholder="123456"
+                        />
+
+                      </div>
+
+                    </div>
+
+
+                    <div>
+
+                      <label className="block tracking-wider uppercase text-[#B8B9A8] mb-1.5">
+                        New Password
                       </label>
 
-                      <button
-                        type="button"
-                        onClick={
-                          handleResendPasswordOtp
-                        }
-                        className="text-[11px] text-[#E4BD5A] hover:underline flex items-center space-x-1 cursor-pointer"
-                      >
+                      <div className="relative">
 
-                        <RotateCcw className="w-3 h-3" />
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#E4BD5A]" />
 
-                        <span>
-                          Resend OTP
-                        </span>
-
-                      </button>
-
-                    </div>
-
-                    <div className="relative">
-
-                      <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#E4BD5A]" />
-
-                      <input
-                        type="text"
-                        maxLength={6}
-                        required
-                        value={
-                          recoveryOtp
-                        }
-                        onChange={(e) =>
-                          setRecoveryOtp(
-                            e.target.value.replace(
-                              /\D/g,
-                              ''
+                        <input
+                          type={
+                            showNewPassword
+                              ? 'text'
+                              : 'password'
+                          }
+                          required
+                          minLength={6}
+                          value={
+                            newPassword
+                          }
+                          onChange={(e) =>
+                            setNewPassword(
+                              e.target.value
                             )
-                          )
-                        }
-                        className="w-full bg-[#002B1D] border border-[#E4BD5A]/30 pl-10 pr-3 py-3 text-xs text-[#F5F0DF] font-mono tracking-[0.3em] focus:outline-none focus:border-[#E4BD5A]"
-                        placeholder="123456"
-                      />
+                          }
+                          className="w-full bg-[#002B1D] border border-[#E4BD5A]/30 pl-10 pr-10 py-3 text-xs text-[#F5F0DF] focus:outline-none focus:border-[#E4BD5A]"
+                          placeholder="••••••••"
+                        />
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setShowNewPassword(
+                              !showNewPassword
+                            )
+                          }
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-[#B8B9A8] cursor-pointer"
+                        >
+
+                          {showNewPassword ? (
+                            <EyeOff className="w-4 h-4" />
+                          ) : (
+                            <Eye className="w-4 h-4" />
+                          )}
+
+                        </button>
+
+                      </div>
 
                     </div>
 
-                  </div>
 
+                    <div>
 
-                  <div>
+                      <label className="block tracking-wider uppercase text-[#B8B9A8] mb-1.5">
+                        Confirm New Password
+                      </label>
 
-                    <label className="block tracking-wider uppercase text-[#B8B9A8] mb-1.5">
-                      New Password
-                    </label>
+                      <div className="relative">
 
-                    <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#E4BD5A]" />
 
-                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#E4BD5A]" />
+                        <input
+                          type={
+                            showConfirmPassword
+                              ? 'text'
+                              : 'password'
+                          }
+                          required
+                          minLength={6}
+                          value={
+                            confirmPassword
+                          }
+                          onChange={(e) =>
+                            setConfirmPassword(
+                              e.target.value
+                            )
+                          }
+                          className="w-full bg-[#002B1D] border border-[#E4BD5A]/30 pl-10 pr-10 py-3 text-xs text-[#F5F0DF] focus:outline-none focus:border-[#E4BD5A]"
+                          placeholder="••••••••"
+                        />
 
-                      <input
-                        type={
-                          showNewPassword
-                            ? 'text'
-                            : 'password'
-                        }
-                        required
-                        minLength={6}
-                        value={
-                          newPassword
-                        }
-                        onChange={(e) =>
-                          setNewPassword(
-                            e.target.value
-                          )
-                        }
-                        className="w-full bg-[#002B1D] border border-[#E4BD5A]/30 pl-10 pr-10 py-3 text-xs text-[#F5F0DF] focus:outline-none focus:border-[#E4BD5A]"
-                        placeholder="••••••••"
-                      />
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setShowConfirmPassword(
+                              !showConfirmPassword
+                            )
+                          }
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-[#B8B9A8] cursor-pointer"
+                        >
 
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setShowNewPassword(
-                            !showNewPassword
-                          )
-                        }
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-[#B8B9A8] cursor-pointer"
-                      >
+                          {showConfirmPassword ? (
+                            <EyeOff className="w-4 h-4" />
+                          ) : (
+                            <Eye className="w-4 h-4" />
+                          )}
 
-                        {showNewPassword ? (
-                          <EyeOff className="w-4 h-4" />
-                        ) : (
-                          <Eye className="w-4 h-4" />
-                        )}
+                        </button>
 
-                      </button>
+                      </div>
 
                     </div>
 
-                  </div>
+                    <button
+                      type="submit"
+                      disabled={
+                        isSubmittingRecovery
+                      }
+                      className="w-full btn-gold py-3.5 text-xs tracking-[0.2em] flex items-center justify-center space-x-2"
+                    >
+
+                      <span>
+                        {isSubmittingRecovery
+                          ? 'UPDATING PASSWORD...'
+                          : 'UPDATE PASSWORD'}
+                      </span>
+
+                      <ArrowRight className="w-4 h-4" />
+
+                    </button>
+
+                  </form>
+
+                </div>
+              )}
 
 
-                  <div>
+            {recoveryStep ===
+              'success' && (
 
-                    <label className="block tracking-wider uppercase text-[#B8B9A8] mb-1.5">
-                      Confirm New Password
-                    </label>
+                <div className="space-y-6">
 
-                    <div className="relative">
+                  <div className="p-5 bg-[#002B1D] border border-[#E4BD5A]/50 space-y-4">
 
-                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#E4BD5A]" />
+                    <div className="w-14 h-14 mx-auto rounded-full bg-[#002418] border border-[#E4BD5A] flex items-center justify-center text-[#E4BD5A]">
 
-                      <input
-                        type={
-                          showConfirmPassword
-                            ? 'text'
-                            : 'password'
-                        }
-                        required
-                        minLength={6}
-                        value={
-                          confirmPassword
-                        }
-                        onChange={(e) =>
-                          setConfirmPassword(
-                            e.target.value
-                          )
-                        }
-                        className="w-full bg-[#002B1D] border border-[#E4BD5A]/30 pl-10 pr-10 py-3 text-xs text-[#F5F0DF] focus:outline-none focus:border-[#E4BD5A]"
-                        placeholder="••••••••"
-                      />
+                      <CheckCircle2 className="w-7 h-7" />
 
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setShowConfirmPassword(
-                            !showConfirmPassword
-                          )
-                        }
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-[#B8B9A8] cursor-pointer"
-                      >
+                    </div>
 
-                        {showConfirmPassword ? (
-                          <EyeOff className="w-4 h-4" />
-                        ) : (
-                          <Eye className="w-4 h-4" />
-                        )}
+                    <div className="text-center">
 
-                      </button>
+                      <h2 className="font-serif text-2xl text-[#F5F0DF]">
+                        Password Updated
+                      </h2>
+
+                      <p className="text-xs text-[#B8B9A8] mt-2">
+                        Your password has been successfully updated.
+                      </p>
 
                     </div>
 
                   </div>
 
                   <button
-                    type="submit"
-                    disabled={
-                      isSubmittingRecovery
+                    type="button"
+                    onClick={
+                      handleProceedToSignIn
                     }
                     className="w-full btn-gold py-3.5 text-xs tracking-[0.2em] flex items-center justify-center space-x-2"
                   >
 
                     <span>
-                      {isSubmittingRecovery
-                        ? 'UPDATING PASSWORD...'
-                        : 'UPDATE PASSWORD'}
+                      SIGN IN WITH NEW PASSWORD
                     </span>
 
                     <ArrowRight className="w-4 h-4" />
 
                   </button>
 
-                </form>
-
-              </div>
-            )}
-
-
-            {recoveryStep ===
-              'success' && (
-
-              <div className="space-y-6">
-
-                <div className="p-5 bg-[#002B1D] border border-[#E4BD5A]/50 space-y-4">
-
-                  <div className="w-14 h-14 mx-auto rounded-full bg-[#002418] border border-[#E4BD5A] flex items-center justify-center text-[#E4BD5A]">
-
-                    <CheckCircle2 className="w-7 h-7" />
-
-                  </div>
-
-                  <div className="text-center">
-
-                    <h2 className="font-serif text-2xl text-[#F5F0DF]">
-                      Password Updated
-                    </h2>
-
-                    <p className="text-xs text-[#B8B9A8] mt-2">
-                      Your password has been successfully updated.
-                    </p>
-
-                  </div>
-
                 </div>
-
-                <button
-                  type="button"
-                  onClick={
-                    handleProceedToSignIn
-                  }
-                  className="w-full btn-gold py-3.5 text-xs tracking-[0.2em] flex items-center justify-center space-x-2"
-                >
-
-                  <span>
-                    SIGN IN WITH NEW PASSWORD
-                  </span>
-
-                  <ArrowRight className="w-4 h-4" />
-
-                </button>
-
-              </div>
-            )}
+              )}
 
           </div>
 
@@ -1036,6 +1062,13 @@ export const Login: React.FC<LoginProps> = ({
             {loginType === 'mobile' && (
 
               <div className="space-y-4 text-xs">
+
+                {mobileError && (
+                  <div className="p-3 bg-red-900/30 border border-red-500/40 text-red-200 text-xs flex items-start space-x-2">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                    <span>{mobileError}</span>
+                  </div>
+                )}
 
 
                 <div>

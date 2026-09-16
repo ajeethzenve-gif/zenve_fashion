@@ -11,10 +11,26 @@ from .models import WishlistItem
 
 class WishlistSyncAPIView(APIView):
     """
-    POST /api/wishlist/sync/
-    Synchronizes client wishlist product IDs and returns full Product objects.
+    GET    /api/wishlist/      - Retrieve authenticated customer's wishlist items
+    POST   /api/wishlist/sync/ - Synchronizes client wishlist product IDs strictly under authenticated user
+    DELETE /api/wishlist/      - Clears customer's wishlist items in database
     """
     permission_classes = [AllowAny]
+
+    def get(self, request):
+        if not request.user or not request.user.is_authenticated:
+            return Response([], status=status.HTTP_200_OK)
+
+        items = WishlistItem.objects.filter(user=request.user)
+        product_ids = [item.product_id for item in items]
+        products = Product.objects.filter(id__in=product_ids)
+        serializer = ProductSerializer(products, many=True, context={"request": request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def delete(self, request):
+        if request.user and request.user.is_authenticated:
+            WishlistItem.objects.filter(user=request.user).delete()
+        return Response({"message": "Wishlist cleared successfully."}, status=status.HTTP_200_OK)
 
     def post(self, request):
         product_ids = request.data.get("productIds", [])
@@ -27,8 +43,9 @@ class WishlistSyncAPIView(APIView):
         numeric_ids = [int(pid) for pid in cleaned_ids if pid.isdigit()]
         slug_ids = [pid for pid in cleaned_ids if not pid.isdigit()]
 
+        from django.db.models import Q
         products = Product.objects.filter(
-            Q(id__in=numeric_ids) | Q(slug__in=slug_ids)
+            Q(id__in=numeric_ids) | Q(sku__in=slug_ids)
         )
 
         # If user is authenticated, sync items into DB
@@ -42,8 +59,10 @@ class WishlistSyncAPIView(APIView):
         prod_map = {}
         for p in products:
             prod_map[str(p.id)] = p
-            if p.slug:
-                prod_map[p.slug] = p
+            if getattr(p, "sku", None):
+                prod_map[str(p.sku)] = p
+            if getattr(p, "slug", None):
+                prod_map[str(p.slug)] = p
 
         ordered_products = []
         seen = set()

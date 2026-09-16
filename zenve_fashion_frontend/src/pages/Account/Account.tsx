@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { useWishlistStore } from '../../store/wishlistStore';
+import { addressService } from '../../services/addressService';
 import { OrderList } from './OrderList';
 
 interface AddressItem {
@@ -31,8 +32,6 @@ interface AddressItem {
   isDefault: boolean;
 }
 
-const DEFAULT_ADDRESSES: AddressItem[] = [];
-
 export const Account: React.FC = () => {
   const { user, logout, updateProfile } = useAuthStore();
   const wishlistItems = useWishlistStore((state) => state.items);
@@ -47,22 +46,8 @@ export const Account: React.FC = () => {
   });
   const [profileSaveSuccess, setProfileSaveSuccess] = useState(false);
 
-  // Address state with localStorage persistence
-  const [addresses, setAddresses] = useState<AddressItem[]>(() => {
-    try {
-      const saved = localStorage.getItem('zenve_user_addresses');
-      if (saved) {
-        const parsed: AddressItem[] = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          return parsed;
-        }
-      }
-      return DEFAULT_ADDRESSES;
-    } catch {
-      return DEFAULT_ADDRESSES;
-    }
-  });
-
+  // Address state backed by isolated backend database
+  const [addresses, setAddresses] = useState<AddressItem[]>([]);
   const [isEditingAddress, setIsEditingAddress] = useState(false);
   const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
   const [addressForm, setAddressForm] = useState<Omit<AddressItem, 'id'>>({
@@ -77,32 +62,53 @@ export const Account: React.FC = () => {
     isDefault: false,
   });
 
-  // Sync addresses to localStorage
+  // Load addresses strictly belonging to current authenticated customer
   useEffect(() => {
-    try {
-      localStorage.setItem('zenve_user_addresses', JSON.stringify(addresses));
-    } catch {
-      // ignore
+    let mounted = true;
+    async function loadAddresses() {
+      if (!user) {
+        if (mounted) setAddresses([]);
+        return;
+      }
+      const backendAddrs = await addressService.getAddresses();
+      if (mounted) {
+        if (backendAddrs.length > 0) {
+          const mapped: AddressItem[] = backendAddrs.map((a, i) => ({
+            id: String(a.id),
+            label: i === 0 ? 'Primary Residence' : `Residence ${i + 1}`,
+            name: a.fullName || a.name || user?.name || '',
+            addressLine1: a.addressLine1,
+            addressLine2: a.addressLine2 || '',
+            city: a.city,
+            state: a.state,
+            pincode: a.pincode,
+            phone: a.mobile || a.phone || user?.phone || '',
+            isDefault: Boolean(a.isDefault),
+          }));
+          setAddresses(mapped);
+        } else if (user?.addresses && user.addresses.length > 0) {
+          const mapped: AddressItem[] = user.addresses.map((a, i) => ({
+            id: String(a.id),
+            label: i === 0 ? 'Primary Residence' : `Residence ${i + 1}`,
+            name: a.fullName || a.name || user?.name || '',
+            addressLine1: a.addressLine1,
+            addressLine2: a.addressLine2 || '',
+            city: a.city,
+            state: a.state,
+            pincode: a.pincode,
+            phone: a.mobile || a.phone || user?.phone || '',
+            isDefault: Boolean(a.isDefault),
+          }));
+          setAddresses(mapped);
+        } else {
+          setAddresses([]);
+        }
+      }
     }
-  }, [addresses]);
-
-  // Sync addresses from user profile if empty
-  useEffect(() => {
-    if (addresses.length === 0 && user?.addresses && user.addresses.length > 0) {
-      const mapped: AddressItem[] = user.addresses.map((a, i) => ({
-        id: a.id || `addr-${i}`,
-        label: i === 0 ? 'Primary Residence' : 'Secondary Residence',
-        name: a.fullName,
-        addressLine1: a.addressLine1,
-        addressLine2: a.addressLine2 || '',
-        city: a.city,
-        state: a.state,
-        pincode: a.pincode,
-        phone: a.mobile,
-        isDefault: a.isDefault ?? i === 0,
-      }));
-      setAddresses(mapped);
-    }
+    loadAddresses();
+    return () => {
+      mounted = false;
+    };
   }, [user]);
 
   const handleLogout = () => {
@@ -153,37 +159,65 @@ export const Account: React.FC = () => {
     setIsEditingAddress(true);
   };
 
-  const handleDeleteAddress = (id: string) => {
+  const handleDeleteAddress = async (id: string) => {
+    await addressService.deleteAddress(id);
     setAddresses((prev) => prev.filter((a) => a.id !== id));
   };
 
-  const handleSaveAddress = (e: React.FormEvent) => {
+  const handleSaveAddress = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!addressForm.name || !addressForm.addressLine1 || !addressForm.city || !addressForm.pincode) {
       return;
     }
 
-    if (editingAddressId) {
-      setAddresses((prev) =>
-        prev.map((item) => {
-          if (item.id === editingAddressId) {
-            return {
-              ...item,
-              ...addressForm,
-            };
-          }
-          if (addressForm.isDefault) {
-            return { ...item, isDefault: false };
-          }
-          return item;
-        })
-      );
-    } else {
-      const newId = `addr-${Date.now()}`;
-      setAddresses((prev) => {
-        const updated = addressForm.isDefault ? prev.map((a) => ({ ...a, isDefault: false })) : [...prev];
-        return [...updated, { ...addressForm, id: newId }];
-      });
+    try {
+      if (editingAddressId) {
+        const updated = await addressService.updateAddress(editingAddressId, {
+          fullName: addressForm.name,
+          mobile: addressForm.phone,
+          addressLine1: addressForm.addressLine1,
+          addressLine2: addressForm.addressLine2,
+          city: addressForm.city,
+          state: addressForm.state,
+          pincode: addressForm.pincode,
+          country: 'India',
+          isDefault: addressForm.isDefault,
+        });
+        setAddresses((prev) =>
+          prev.map((item) => {
+            if (item.id === editingAddressId) {
+              return {
+                ...item,
+                ...addressForm,
+                id: updated ? String(updated.id) : item.id,
+              };
+            }
+            if (addressForm.isDefault) {
+              return { ...item, isDefault: false };
+            }
+            return item;
+          })
+        );
+      } else {
+        const created = await addressService.createAddress({
+          fullName: addressForm.name,
+          mobile: addressForm.phone,
+          addressLine1: addressForm.addressLine1,
+          addressLine2: addressForm.addressLine2,
+          city: addressForm.city,
+          state: addressForm.state,
+          pincode: addressForm.pincode,
+          country: 'India',
+          isDefault: addressForm.isDefault,
+        });
+        const newId = created ? String(created.id) : `addr-${Date.now()}`;
+        setAddresses((prev) => {
+          const updated = addressForm.isDefault ? prev.map((a) => ({ ...a, isDefault: false })) : [...prev];
+          return [...updated, { ...addressForm, id: newId }];
+        });
+      }
+    } catch (err) {
+      console.error('Save address error:', err);
     }
 
     setIsEditingAddress(false);

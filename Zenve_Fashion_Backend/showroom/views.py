@@ -10,7 +10,13 @@ class AppointmentListCreateAPIView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
-        appointments = ShowroomAppointment.objects.all()
+        if request.user and request.user.is_authenticated and (request.user.is_staff or request.user.is_superuser):
+            appointments = ShowroomAppointment.objects.all()
+        elif request.user and request.user.is_authenticated:
+            appointments = ShowroomAppointment.objects.filter(email__iexact=request.user.email)
+        else:
+            return Response([], status=status.HTTP_200_OK)
+
         serializer = ShowroomAppointmentSerializer(appointments, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 

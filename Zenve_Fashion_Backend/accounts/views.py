@@ -1,13 +1,21 @@
 import random
 import secrets
+import re
 
 from django.core.cache import cache
 from django.core.mail import send_mail
+from django.db.models import Q
 from rest_framework.permissions import AllowAny
 
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
 from django.conf import settings
+from .twilio_service import (
+    send_twilio_otp_sms,
+    send_twilio_welcome_sms,
+    send_twilio_registration_otp_sms,
+    format_e164_phone,
+)
 
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -75,7 +83,9 @@ def _get_auth_user_data(user, request=None):
             addresses.append({
                 "id": str(addr.id),
                 "fullName": addr.full_name,
+                "name": addr.full_name,
                 "mobile": addr.phone_number,
+                "phone": addr.phone_number,
                 "email": user.email,
                 "addressLine1": addr.address_line1,
                 "addressLine2": addr.address_line2 or "",
@@ -166,6 +176,11 @@ class RegisterAPIView(APIView):
                     phone_number=phone,
                     country="India",
                 )
+
+                # Send official welcome SMS to the new customer via Twilio
+                if phone:
+                    customer_display_name = user.first_name or name or "Valued Client"
+                    send_twilio_welcome_sms(phone, customer_display_name)
             except Role.DoesNotExist:
                 return Response(
                     {"message": "Customer role is not configured. Create a Customer role first."},
@@ -225,6 +240,12 @@ class RegisterAPIView(APIView):
                     country=serializer.validated_data.get("country", "India"),
                     postal_code=serializer.validated_data.get("postal_code")
                 )
+
+                # Send official welcome SMS to the new customer via Twilio
+                client_phone = serializer.validated_data.get("phone_number")
+                if client_phone:
+                    client_name = user.first_name or user.username or "Valued Client"
+                    send_twilio_welcome_sms(client_phone, client_name)
             except Role.DoesNotExist:
                 return Response(
                     {"message": "Customer role is not configured. Create a Customer role first."},
@@ -261,21 +282,43 @@ class LoginAPIView(APIView):
 
         # Phone + OTP login. OTP is created by SendLoginOTPAPIView below.
         if phone and otp and not password:
-            otp_data = cache.get(f"login_otp_{phone}")
+            formatted_phone = format_e164_phone(phone)
+            otp_data = cache.get(f"login_otp_{phone}") or cache.get(f"login_otp_{formatted_phone}")
 
             if not otp_data:
                 return Response({"message": "OTP has expired. Please request a new OTP."}, status=status.HTTP_401_UNAUTHORIZED)
 
-            if otp_data.get("otp") != otp:
+            if str(otp_data.get("otp")) != otp:
                 return Response({"message": "Invalid OTP."}, status=status.HTTP_401_UNAUTHORIZED)
 
-            try:
-                customer = Customer.objects.select_related("user").get(phone_number=phone)
+            # Look up customer by either raw or formatted phone
+            customer = Customer.objects.select_related("user").filter(
+                Q(phone_number=phone) | Q(phone_number=formatted_phone)
+            ).first()
+
+            if customer and customer.user:
                 user = customer.user
-            except Customer.DoesNotExist:
-                return Response({"message": "No account exists with this phone number."}, status=status.HTTP_401_UNAUTHORIZED)
+            else:
+                # Auto-create client user & customer record for seamless mobile login
+                clean_digits = re.sub(r"\D", "", phone)[-10:]
+                username = f"client_{clean_digits}"
+                existing_user = User.objects.filter(username=username).first()
+                if existing_user:
+                    user = existing_user
+                else:
+                    user = User.objects.create_user(
+                        username=username,
+                        email=f"{clean_digits}@zenvefashion.com",
+                        first_name="Zenve Client",
+                    )
+                customer, _ = Customer.objects.get_or_create(
+                    user=user,
+                    defaults={"phone_number": formatted_phone or phone}
+                )
 
             cache.delete(f"login_otp_{phone}")
+            if formatted_phone:
+                cache.delete(f"login_otp_{formatted_phone}")
 
         else:
             login_value = email or username_or_email
@@ -387,47 +430,104 @@ class SendOTPAPIView(APIView):
             )
 
         else:
-            try:
-                customer = Customer.objects.select_related("user").get(phone_number=phone)
-            except Customer.DoesNotExist:
-                return Response(
-                    {"success": False, "message": "No account exists with this phone number."},
-                    status=status.HTTP_404_NOT_FOUND
-                )
+            formatted_phone = format_e164_phone(phone)
+            customer = Customer.objects.select_related("user").filter(
+                Q(phone_number=phone) | Q(phone_number=formatted_phone)
+            ).first()
 
+            user_id = customer.user_id if customer else None
+
+            # Store OTP in cache for both raw and formatted phone
             cache.set(
                 f"login_otp_{phone}",
-                {"otp": otp, "user_id": customer.user_id},
+                {"otp": otp, "user_id": user_id, "phone": phone},
                 timeout=300
             )
-
-            try:
-                send_mail(
-                    subject="Zenve Fashion Atelier - Login OTP",
-                    message=(
-                        f"Hello {customer.user.first_name or customer.user.username},\n\n"
-                        f"Your login OTP is: {otp}\n\n"
-                        "This OTP is valid for 5 minutes.\n\n"
-                        "Zenve Fashion Atelier"
-                    ),
-                    from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None),
-                    recipient_list=[customer.user.email],
-                    fail_silently=True,
+            if formatted_phone and formatted_phone != phone:
+                cache.set(
+                    f"login_otp_{formatted_phone}",
+                    {"otp": otp, "user_id": user_id, "phone": formatted_phone},
+                    timeout=300
                 )
-            except Exception:
-                pass
 
-            return Response(
-                {
-                    "success": True,
-                    "otp": otp,
-                    "phone": phone,
-                    "message": "OTP sent successfully.",
-                },
-                status=status.HTTP_200_OK
-            )
+            # Dispatch real mobile SMS via Twilio
+            sms_result = send_twilio_otp_sms(phone, otp)
+
+            # If customer has email on file, also send email copy
+            if customer and customer.user and customer.user.email:
+                try:
+                    send_mail(
+                        subject="Zenve Fashion Atelier - Login OTP",
+                        message=(
+                            f"Hello {customer.user.first_name or customer.user.username},\n\n"
+                            f"Your login OTP is: {otp}\n\n"
+                            "This OTP is valid for 5 minutes.\n\n"
+                            "Zenve Fashion Atelier"
+                        ),
+                        from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None),
+                        recipient_list=[customer.user.email],
+                        fail_silently=True,
+                    )
+                except Exception:
+                    pass
+
+            response_data = {
+                "success": True,
+                "phone": phone,
+                "formatted_phone": formatted_phone,
+                "message": f"Verification OTP sent to {formatted_phone} via SMS." if sms_result.get("success") else "OTP generated successfully.",
+                "twilio_status": "sent" if sms_result.get("success") else sms_result.get("message", "pending"),
+            }
+
+            # If Twilio credentials are not configured yet, include OTP so development/testing is not blocked
+            if not sms_result.get("configured") or getattr(settings, "DEBUG", False):
+                response_data["otp"] = otp
+                if not sms_result.get("configured"):
+                    response_data["dev_note"] = "Twilio credentials pending in .env. Enter TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN to deliver live SMS."
+
+            return Response(response_data, status=status.HTTP_200_OK)
 
 SendLoginOTPAPIView = SendOTPAPIView
+
+
+# =========================================================
+# SEND REGISTRATION OTP API
+# =========================================================
+
+class SendRegistrationOTPAPIView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        phone = str(request.data.get("phone", "")).strip()
+        if not phone:
+            return Response({"success": False, "message": "Phone number is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check if phone is already registered
+        if Customer.objects.filter(phone_number=phone).exists():
+            return Response({"success": False, "message": "An account with this phone number already exists."}, status=status.HTTP_400_BAD_REQUEST)
+
+        otp = str(random.randint(100000, 999999))
+        formatted_phone = format_e164_phone(phone)
+
+        cache.set(f"reg_otp_{phone}", otp, timeout=300)
+        if formatted_phone != phone:
+            cache.set(f"reg_otp_{formatted_phone}", otp, timeout=300)
+
+        sms_result = send_twilio_registration_otp_sms(phone, otp)
+
+        res_data = {
+            "success": True,
+            "phone": phone,
+            "formatted_phone": formatted_phone,
+            "message": f"Verification code sent to {formatted_phone} via SMS." if sms_result.get("success") else "OTP generated successfully.",
+            "twilio_status": "sent" if sms_result.get("success") else sms_result.get("message", "pending"),
+        }
+        if not sms_result.get("configured") or getattr(settings, "DEBUG", False):
+            res_data["otp"] = otp
+
+        return Response(res_data, status=status.HTTP_200_OK)
+
 
 
 
@@ -763,135 +863,59 @@ class UpdateProfileAPIView(APIView):
             status=status.HTTP_400_BAD_REQUEST
         )
 
-
 # ==========================================
 # ADDRESS LIST + CREATE
 # ==========================================
 
 class CustomerAddressListCreateAPIView(APIView):
-
-    permission_classes = [
-        IsAuthenticated
-    ]
+    permission_classes = [IsAuthenticated]
 
     # ======================================
     # GET ALL ADDRESSES
     # ======================================
-
     def get(self, request):
-
-        customer = get_object_or_404(
-            Customer,
-            user=request.user
+        customer, _ = Customer.objects.get_or_create(
+            user=request.user,
+            defaults={"phone_number": getattr(request.user, "username", f"user_{request.user.id}")}
         )
 
         addresses = (
             CustomerAddress.objects
             .filter(customer=customer)
-            .order_by(
-                "-is_default",
-                "-id"
-            )
+            .order_by("-is_default", "-id")
         )
 
-        serializer = CustomerAddressSerializer(
-            addresses,
-            many=True
-        )
-
-        return Response(
-            serializer.data,
-            status=status.HTTP_200_OK
-        )
+        serializer = CustomerAddressSerializer(addresses, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     # ======================================
     # ADD NEW ADDRESS
     # ======================================
-
     @transaction.atomic
     def post(self, request):
-
-        customer = get_object_or_404(
-            Customer,
-            user=request.user
+        customer, _ = Customer.objects.get_or_create(
+            user=request.user,
+            defaults={"phone_number": getattr(request.user, "username", f"user_{request.user.id}")}
         )
 
-        serializer = CustomerAddressSerializer(
-            data=request.data
-        )
+        serializer = CustomerAddressSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
 
-        serializer.is_valid(
-            raise_exception=True
-        )
-
-        requested_default = (
-            request.data.get("is_default", False)
-        )
-
-        # Convert string values safely
+        requested_default = request.data.get("is_default", request.data.get("isDefault", False))
         if isinstance(requested_default, str):
-            requested_default = (
-                requested_default.lower()
-                in ["true", "1", "yes"]
-            )
+            requested_default = requested_default.lower() in ["true", "1", "yes"]
 
-        # Check whether customer already has addresses
-        has_existing_address = (
-            CustomerAddress.objects
-            .filter(
-                customer=customer
-            )
-            .exists()
-        )
+        has_existing_address = CustomerAddress.objects.filter(customer=customer).exists()
 
-        # ==========================================
-        # FIRST ADDRESS
-        # ==========================================
-
-        if not has_existing_address:
-
-            address = serializer.save(
-                customer=customer,
-                is_default=True
-            )
-
-        # ==========================================
-        # NEW ADDRESS REQUESTED AS DEFAULT
-        # ==========================================
-
-        elif requested_default:
-
-            # Remove default from previous address
-            CustomerAddress.objects.filter(
-                customer=customer,
-                is_default=True
-            ).update(
-                is_default=False
-            )
-
-            # Create new default address
-            address = serializer.save(
-                customer=customer,
-                is_default=True
-            )
-
-        # ==========================================
-        # NORMAL NEW ADDRESS
-        # ==========================================
-
+        if not has_existing_address or requested_default:
+            # If this is the first address or explicitly requested default,
+            # clear any existing defaults and make this one default
+            CustomerAddress.objects.filter(customer=customer, is_default=True).update(is_default=False)
+            address = serializer.save(customer=customer, is_default=True)
         else:
+            address = serializer.save(customer=customer, is_default=False)
 
-            address = serializer.save(
-                customer=customer,
-                is_default=False
-            )
-
-        return Response(
-            CustomerAddressSerializer(
-                address
-            ).data,
-            status=status.HTTP_201_CREATED
-        )
+        return Response(CustomerAddressSerializer(address).data, status=status.HTTP_201_CREATED)
 
 
 # ==========================================
@@ -899,275 +923,78 @@ class CustomerAddressListCreateAPIView(APIView):
 # ==========================================
 
 class CustomerAddressDetailAPIView(APIView):
-
-    permission_classes = [
-        IsAuthenticated
-    ]
-
-    # ======================================
-    # GET CUSTOMER
-    # ======================================
+    permission_classes = [IsAuthenticated]
 
     def get_customer(self, request):
-
-        return get_object_or_404(
-            Customer,
-            user=request.user
+        customer, _ = Customer.objects.get_or_create(
+            user=request.user,
+            defaults={"phone_number": getattr(request.user, "username", f"user_{request.user.id}")}
         )
-
-    # ======================================
-    # GET ADDRESS
-    # ======================================
+        return customer
 
     def get_address(self, request, pk):
+        customer = self.get_customer(request)
+        return get_object_or_404(CustomerAddress, id=pk, customer=customer)
 
-        customer = self.get_customer(
-            request
-        )
-
-        return get_object_or_404(
-            CustomerAddress,
-            id=pk,
-            customer=customer
-        )
-
-    # ======================================
-    # UPDATE ADDRESS
-    # ======================================
+    def get(self, request, pk):
+        address = self.get_address(request, pk)
+        return Response(CustomerAddressSerializer(address).data, status=status.HTTP_200_OK)
 
     @transaction.atomic
     def put(self, request, pk):
+        customer = self.get_customer(request)
+        address = get_object_or_404(CustomerAddress, id=pk, customer=customer)
 
-        customer = self.get_customer(
-            request
-        )
-
-        address = get_object_or_404(
-            CustomerAddress,
-            id=pk,
-            customer=customer
-        )
-
-        # ==========================================
-        # CHECK WHETHER THIS ADDRESS SHOULD
-        # BECOME DEFAULT
-        # ==========================================
-
-        requested_default = (
-            request.data.get(
-                "is_default",
-                address.is_default
-            )
-        )
-
+        requested_default = request.data.get("is_default", request.data.get("isDefault", address.is_default))
         if isinstance(requested_default, str):
-
-            requested_default = (
-                requested_default.lower()
-                in ["true", "1", "yes"]
-            )
-
-        # ==========================================
-        # MAKE THIS ADDRESS DEFAULT
-        # ==========================================
+            requested_default = requested_default.lower() in ["true", "1", "yes"]
 
         if requested_default:
-
-            # Remove default from every other address
-            CustomerAddress.objects.filter(
-                customer=customer,
-                is_default=True
-            ).exclude(
-                id=address.id
-            ).update(
-                is_default=False
-            )
-
-            # Update selected address
-            serializer = CustomerAddressSerializer(
-                address,
-                data=request.data,
-                partial=True
-            )
-
-            serializer.is_valid(
-                raise_exception=True
-            )
-
-            updated_address = serializer.save(
-                is_default=True
-            )
-
-        # ==========================================
-        # NORMAL UPDATE
-        # ==========================================
-
+            CustomerAddress.objects.filter(customer=customer, is_default=True).exclude(id=address.id).update(is_default=False)
+            serializer = CustomerAddressSerializer(address, data=request.data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            updated_address = serializer.save(is_default=True)
         else:
-
-            serializer = CustomerAddressSerializer(
-                address,
-                data=request.data,
-                partial=True
-            )
-
-            serializer.is_valid(
-                raise_exception=True
-            )
-
+            serializer = CustomerAddressSerializer(address, data=request.data, partial=True)
+            serializer.is_valid(raise_exception=True)
             updated_address = serializer.save()
 
-        return Response(
-            CustomerAddressSerializer(
-                updated_address
-            ).data,
-            status=status.HTTP_200_OK
-        )
-
-    # ======================================
-    # PATCH
-    # ======================================
+        return Response(CustomerAddressSerializer(updated_address).data, status=status.HTTP_200_OK)
 
     @transaction.atomic
     def patch(self, request, pk):
+        customer = self.get_customer(request)
+        address = get_object_or_404(CustomerAddress, id=pk, customer=customer)
 
-        customer = self.get_customer(
-            request
-        )
-
-        address = get_object_or_404(
-            CustomerAddress,
-            id=pk,
-            customer=customer
-        )
-
-        requested_default = request.data.get(
-            "is_default",
-            None
-        )
-
+        requested_default = request.data.get("is_default", request.data.get("isDefault", None))
         if isinstance(requested_default, str):
-
-            requested_default = (
-                requested_default.lower()
-                in ["true", "1", "yes"]
-            )
-
-        # ==========================================
-        # SET DEFAULT
-        # ==========================================
+            requested_default = requested_default.lower() in ["true", "1", "yes"]
 
         if requested_default is True:
+            CustomerAddress.objects.filter(customer=customer, is_default=True).exclude(id=address.id).update(is_default=False)
 
-            CustomerAddress.objects.filter(
-                customer=customer,
-                is_default=True
-            ).exclude(
-                id=address.id
-            ).update(
-                is_default=False
-            )
-
-        serializer = CustomerAddressSerializer(
-            address,
-            data=request.data,
-            partial=True
-        )
-
-        serializer.is_valid(
-            raise_exception=True
-        )
-
+        serializer = CustomerAddressSerializer(address, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
         updated_address = serializer.save()
 
-        return Response(
-            CustomerAddressSerializer(
-                updated_address
-            ).data,
-            status=status.HTTP_200_OK
-        )
-
-    # ======================================
-    # DELETE ADDRESS
-    # ======================================
+        return Response(CustomerAddressSerializer(updated_address).data, status=status.HTTP_200_OK)
 
     @transaction.atomic
     def delete(self, request, pk):
-
-        customer = self.get_customer(
-            request
-        )
-
-        address = get_object_or_404(
-            CustomerAddress,
-            id=pk,
-            customer=customer
-        )
-
-        addresses = CustomerAddress.objects.filter(
-            customer=customer
-        )
-
-        address_count = addresses.count()
-
-        # ==========================================
-        # DON'T ALLOW ZERO ADDRESSES
-        # ==========================================
-
-        if address_count <= 1:
-
-            return Response(
-                {
-                    "success": False,
-                    "message":
-                        "You must have at least one address."
-                },
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        customer = self.get_customer(request)
+        address = get_object_or_404(CustomerAddress, id=pk, customer=customer)
 
         was_default = address.is_default
-
         address.delete()
 
-        # ==========================================
-        # IF DEFAULT WAS DELETED
-        # MAKE ANOTHER ADDRESS DEFAULT
-        # ==========================================
-
+        # If deleted address was default, make the most recent remaining address default
         if was_default:
-
-            new_default = (
-                CustomerAddress.objects
-                .filter(
-                    customer=customer
-                )
-                .order_by("-id")
-                .first()
-            )
-
+            new_default = CustomerAddress.objects.filter(customer=customer).order_by("-id").first()
             if new_default:
-
-                CustomerAddress.objects.filter(
-                    customer=customer
-                ).update(
-                    is_default=False
-                )
-
                 new_default.is_default = True
+                new_default.save(update_fields=["is_default"])
 
-                new_default.save(
-                    update_fields=[
-                        "is_default"
-                    ]
-                )
-
-        return Response(
-            {
-                "success": True,
-                "message":
-                    "Address deleted successfully."
-            },
-            status=status.HTTP_200_OK
-        )
+        return Response({"success": True, "message": "Address deleted successfully."}, status=status.HTTP_200_OK)
 
 class ForgotPasswordAPIView(APIView):
 

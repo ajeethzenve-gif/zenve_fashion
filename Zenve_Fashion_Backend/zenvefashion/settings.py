@@ -144,22 +144,32 @@ TEMPLATES = [
 WSGI_APPLICATION = "zenvefashion.wsgi.application"
 
 
-db_name = os.getenv("DB_NAME")
+# =====================================================
+# DATABASE CONFIGURATION
+# =====================================================
+
+db_name = (os.getenv("DB_NAME") or "").strip()
+
 if db_name:
     try:
         import pymysql
         pymysql.install_as_MySQLdb()
-    except ImportError:
+        from django.db.backends.base.base import BaseDatabaseWrapper
+        BaseDatabaseWrapper.check_database_version_supported = lambda self: None
+    except (ImportError, Exception):
         pass
 
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.mysql",
-            "NAME": os.getenv("DB_NAME", "zenvefashion"),
+            "NAME": db_name,
             "USER": os.getenv("DB_USER", "zenvefashion"),
             "PASSWORD": os.getenv("DB_PASSWORD", ""),
             "HOST": os.getenv("DB_HOST", "127.0.0.1"),
             "PORT": os.getenv("DB_PORT", "3307"),
+            "OPTIONS": {
+                "charset": "utf8mb4",
+            },
         }
     }
 else:
@@ -361,18 +371,20 @@ GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 # =====================================================
 # EMAIL CONFIGURATION
 # =====================================================
-EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
-EMAIL_HOST = "smtp.gmail.com"
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
-EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER")
-EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD")
-DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+
 # =====================================================
 # RAZORPAY
 # =====================================================
 RAZORPAY_KEY_ID = os.getenv("RAZORPAY_KEY_ID")
 RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET")
+
+# =====================================================
+# TWILIO SMS CONFIGURATION
+# =====================================================
+TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID", "").strip()
+TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN", "").strip()
+TWILIO_PHONE_NUMBER = os.getenv("TWILIO_PHONE_NUMBER", "").strip()
+TWILIO_MESSAGING_SERVICE_SID = os.getenv("TWILIO_MESSAGING_SERVICE_SID", "").strip()
 # =====================================================
 # LOGIN / LOGOUT
 # =====================================================

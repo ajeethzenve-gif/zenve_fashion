@@ -9,20 +9,48 @@ from .models import CartItem
 
 class CartSyncAPIView(APIView):
     """
-    POST /api/cart/sync/
-    Synchronizes cart items for both authenticated and guest shoppers.
+    GET    /api/cart/      - Retrieve authenticated customer's cart items
+    POST   /api/cart/sync/ - Synchronizes cart items strictly under authenticated user
+    DELETE /api/cart/      - Clears customer's cart items in database
     """
     permission_classes = [AllowAny]
+
+    def get(self, request):
+        if not request.user or not request.user.is_authenticated:
+            return Response([], status=status.HTTP_200_OK)
+
+        items = CartItem.objects.filter(user=request.user)
+        results = []
+        for item in items:
+            results.append({
+                "id": f"{item.product_id}-{item.size}-{item.color}",
+                "product": {
+                    "id": str(item.product_id),
+                    "name": item.product_name,
+                    "price": float(item.price),
+                    "images": [item.product_image] if item.product_image else [],
+                },
+                "selectedSize": item.size or "Standard",
+                "selectedColor": {"name": item.color or "Standard", "hex": "#E4BD5A"},
+                "quantity": item.quantity,
+                "price": float(item.price),
+            })
+        return Response(results, status=status.HTTP_200_OK)
+
+    def delete(self, request):
+        if request.user and request.user.is_authenticated:
+            CartItem.objects.filter(user=request.user).delete()
+        return Response({"message": "Cart cleared successfully."}, status=status.HTTP_200_OK)
 
     def post(self, request):
         raw_items = request.data.get("items", [])
         if not isinstance(raw_items, list):
             return Response({"message": "items must be a list."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # If user is authenticated, sync to DB
+        # If user is authenticated, sync strictly to authenticated user's records
         if request.user and request.user.is_authenticated:
             with transaction.atomic():
-                # Clear previous or reconcile
+                # Clear previous items for this specific user only
                 CartItem.objects.filter(user=request.user).delete()
                 for item in raw_items:
                     product_data = item.get("product") if isinstance(item.get("product"), dict) else {}

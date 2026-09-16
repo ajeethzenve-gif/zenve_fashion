@@ -284,6 +284,16 @@ class ProductDetailBySlugAPIView(APIView):
             ).first()
 
         # ----------------------------------------------------
+        # PRODUCT NAME SLUG
+        # ----------------------------------------------------
+
+        if not product:
+
+            product = qs.filter(
+                product_name__iexact=str(slug).replace("-", " ")
+            ).first()
+
+        # ----------------------------------------------------
         # NOT FOUND
         # ----------------------------------------------------
 

@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Package, ArrowRight, Truck, CheckCircle, Clock, Scissors } from 'lucide-react';
+import { Package, ArrowRight, Truck, CheckCircle, Clock, Scissors, Printer } from 'lucide-react';
 import { orderService } from '../../services/orderService';
 import { Order, OrderStatus } from '../../types/order';
 import { formatINR } from '../../utils/formatters';
+import { OrderInvoiceModal } from '../../components/orders/OrderInvoiceModal';
 
 export const OrderList: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedInvoiceOrder, setSelectedInvoiceOrder] = useState<Order | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -168,16 +170,36 @@ export const OrderList: React.FC = () => {
               </span>
             </div>
 
-            <Link
-              to={`/account/orders/${order.id}`}
-              className="btn-gold py-2.5 px-5 text-xs tracking-widest flex items-center justify-center space-x-2 group-hover:shadow-luxury-gold transition-all"
-            >
-              <span>TRACK ATELIER SHIPMENT</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                onClick={() => setSelectedInvoiceOrder(order)}
+                className="btn-outline-gold py-2 px-4 text-xs tracking-widest flex items-center justify-center space-x-1.5 cursor-pointer hover:bg-[#E4BD5A] hover:text-[#00140D] transition-all"
+                title="View & Download Official Tax Invoice"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                <span>TAX INVOICE</span>
+              </button>
+
+              <Link
+                to={`/account/orders/${order.id}`}
+                className="btn-gold py-2 px-5 text-xs tracking-widest flex items-center justify-center space-x-2 group-hover:shadow-luxury-gold transition-all"
+              >
+                <span>TRACK SHIPMENT</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
           </div>
         </div>
       ))}
+
+      {/* Official Tax Invoice Modal for selected order */}
+      {selectedInvoiceOrder && (
+        <OrderInvoiceModal
+          order={selectedInvoiceOrder}
+          isOpen={Boolean(selectedInvoiceOrder)}
+          onClose={() => setSelectedInvoiceOrder(null)}
+        />
+      )}
     </div>
   );
 };

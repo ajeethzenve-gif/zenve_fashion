@@ -508,7 +508,6 @@ class ProfileSerializer(serializers.ModelSerializer):
 class CustomerAddressSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomerAddress
-
         fields = [
             "id",
             "full_name",
@@ -522,27 +521,72 @@ class CustomerAddressSerializer(serializers.ModelSerializer):
             "is_default",
             "created_at",
         ]
-
         read_only_fields = [
             "id",
             "created_at",
         ]
 
+    def to_internal_value(self, data):
+        # Create a mutable copy of incoming data
+        if hasattr(data, "dict"):
+            data = data.dict()
+        elif hasattr(data, "copy"):
+            data = data.copy()
+        else:
+            data = dict(data)
+
+        # Normalize camelCase into snake_case
+        if "fullName" in data and "full_name" not in data:
+            data["full_name"] = data["fullName"]
+        elif "name" in data and "full_name" not in data:
+            data["full_name"] = data["name"]
+
+        if "mobile" in data and "phone_number" not in data:
+            data["phone_number"] = data["mobile"]
+        elif "phone" in data and "phone_number" not in data:
+            data["phone_number"] = data["phone"]
+
+        if "addressLine1" in data and "address_line1" not in data:
+            data["address_line1"] = data["addressLine1"]
+
+        if "addressLine2" in data and "address_line2" not in data:
+            data["address_line2"] = data["addressLine2"]
+
+        if "pincode" in data and "postal_code" not in data:
+            data["postal_code"] = data["pincode"]
+
+        if "isDefault" in data and "is_default" not in data:
+            data["is_default"] = data["isDefault"]
+
+        if "state" not in data or not data["state"]:
+            data["state"] = "Karnataka"
+
+        if "country" not in data or not data["country"]:
+            data["country"] = "India"
+
+        return super().to_internal_value(data)
+
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        # Add camelCase aliases for seamless frontend compatibility
+        ret["fullName"] = ret.get("full_name", "")
+        ret["name"] = ret.get("full_name", "")
+        ret["mobile"] = ret.get("phone_number", "")
+        ret["phone"] = ret.get("phone_number", "")
+        ret["addressLine1"] = ret.get("address_line1", "")
+        ret["addressLine2"] = ret.get("address_line2", "") or ""
+        ret["pincode"] = ret.get("postal_code", "")
+        ret["isDefault"] = ret.get("is_default", False)
+        ret["id"] = str(ret.get("id"))
+        return ret
+
     def validate_phone_number(self, value):
-        value = value.strip()
-
+        value = str(value).strip() if value else ""
         if not value:
-            raise serializers.ValidationError(
-                "Phone number is required."
-            )
-
+            raise serializers.ValidationError("Phone number is required.")
         return value
 
     def validate(self, attrs):
-        """
-        Prevent an invalid empty address.
-        """
-
         required_fields = [
             "full_name",
             "phone_number",
@@ -552,20 +596,12 @@ class CustomerAddressSerializer(serializers.ModelSerializer):
             "country",
             "postal_code",
         ]
-
         for field in required_fields:
             value = attrs.get(field)
-
-            if value is None or (
-                isinstance(value, str)
-                and not value.strip()
-            ):
+            if value is None or (isinstance(value, str) and not value.strip()):
                 raise serializers.ValidationError(
-                    {
-                        field: f"{field.replace('_', ' ').title()} is required."
-                    }
+                    {field: f"{field.replace('_', ' ').title()} is required."}
                 )
-
         return attrs
 
 

@@ -34,8 +34,13 @@ class OrderListCreateAPIView(APIView):
         shipping_address = data.get("shippingAddress", {})
         raw_items = data.get("items", [])
 
-        user = request.user if (request.user and request.user.is_authenticated) else None
-        user_id_str = str(data.get("userId") or (user.id if user else "guest"))
+        # Strictly derive user identity from backend auth security context, never client payload
+        if request.user and request.user.is_authenticated:
+            user = request.user
+            user_id_str = str(request.user.id)
+        else:
+            user = None
+            user_id_str = "guest"
 
         subtotal = Decimal(str(data.get("subtotal", 0)))
         discount = Decimal(str(data.get("discount", 0)))
@@ -106,6 +111,7 @@ class OrderListCreateAPIView(APIView):
 class OrderDetailAPIView(APIView):
     """
     GET /api/orders/<idOrNumber>/
+    Strictly verifies ownership: A customer can only access their own order.
     """
     permission_classes = [AllowAny]
 
@@ -119,6 +125,34 @@ class OrderDetailAPIView(APIView):
 
         if not order:
             return Response({"detail": "Order not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        # Strict Authorization Check:
+        if order.user is not None:
+            # Order belongs to a registered customer.
+            if not request.user or not request.user.is_authenticated:
+                return Response(
+                    {"detail": "Authentication required to view this order."},
+                    status=status.HTTP_401_UNAUTHORIZED
+                )
+            if order.user != request.user and not (request.user.is_staff or request.user.is_superuser):
+                return Response(
+                    {"detail": "You do not have permission to view another customer's order."},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        else:
+            # Guest order: allow if requested by staff, or matching verification
+            is_staff = bool(request.user and request.user.is_authenticated and (request.user.is_staff or request.user.is_superuser))
+            if not is_staff:
+                order_email = (order.shipping_email or "").strip().lower()
+                query_email = str(request.query_params.get("email") or request.headers.get("X-Order-Email", "")).strip().lower()
+                user_email = (request.user.email or "").strip().lower() if (request.user and request.user.is_authenticated) else ""
+                
+                # Allow if email matches
+                if order_email and query_email != order_email and user_email != order_email:
+                    return Response(
+                        {"detail": "You do not have permission to view this order."},
+                        status=status.HTTP_403_FORBIDDEN
+                    )
 
         serializer = OrderSerializer(order, context={"request": request})
         return Response(serializer.data, status=status.HTTP_200_OK)

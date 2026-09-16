@@ -34,7 +34,25 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Propagate API errors directly
+    if (error?.response?.status === 401) {
+      const url = String(error.config?.url || '');
+      const isAuthAttempt =
+        url.includes('/auth/login') ||
+        url.includes('/auth/register') ||
+        url.includes('/auth/send-otp');
+
+      if (!isAuthAttempt && typeof window !== 'undefined') {
+        localStorage.removeItem('zenve-auth-storage');
+        localStorage.removeItem('zenve-auth');
+        window.dispatchEvent(new Event('zenve-unauthorized'));
+        if (
+          window.location.pathname.startsWith('/account') ||
+          window.location.pathname.startsWith('/checkout')
+        ) {
+          window.location.href = '/login';
+        }
+      }
+    }
     return Promise.reject(error);
   }
 );

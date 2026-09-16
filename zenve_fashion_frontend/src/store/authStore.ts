@@ -3,6 +3,10 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { User } from '../types/user';
 import { authService, LoginCredentials, RegisterData } from '../services/authService';
+import { useCartStore } from './cartStore';
+import { useWishlistStore } from './wishlistStore';
+import { cartService } from '../services/cartService';
+import { wishlistService } from '../services/wishlistService';
 
 const extractErrorMessage = (err: unknown, defaultMessage: string): string => {
   if (axios.isAxiosError(err)) {
@@ -26,6 +30,31 @@ const extractErrorMessage = (err: unknown, defaultMessage: string): string => {
     return err.message;
   }
   return defaultMessage;
+};
+
+const purgeAllCustomerSessionData = () => {
+  try {
+    useCartStore.getState().clearCart();
+  } catch {}
+  try {
+    useWishlistStore.getState().clearWishlist();
+  } catch {}
+
+  try {
+    localStorage.removeItem('zenve_user_addresses');
+    localStorage.removeItem('zenve_orders');
+    localStorage.removeItem('zenve-cart-storage');
+    localStorage.removeItem('zenve-wishlist-storage');
+
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (key.startsWith('zenve_orders_') || key.startsWith('zenve_addr_'))) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach((k) => localStorage.removeItem(k));
+  } catch {}
 };
 
 interface AuthState {
@@ -53,6 +82,9 @@ export const useAuthStore = create<AuthState>()(
       login: async (credentials) => {
         set({ isLoading: true, error: null });
         try {
+          // Purge any lingering state from another customer on this browser
+          purgeAllCustomerSessionData();
+
           const res = await authService.login(credentials);
           set({
             user: res.user,
@@ -60,6 +92,19 @@ export const useAuthStore = create<AuthState>()(
             isAuthenticated: true,
             isLoading: false,
           });
+
+          // Fetch authenticated customer's server-stored cart and wishlist
+          try {
+            const serverCart = await cartService.getCart();
+            if (serverCart && serverCart.length > 0) {
+              useCartStore.setState({ items: serverCart });
+            }
+            const serverWishlist = await wishlistService.getWishlist();
+            if (serverWishlist && serverWishlist.length > 0) {
+              useWishlistStore.setState({ items: serverWishlist });
+            }
+          } catch {}
+
           return true;
         } catch (err: unknown) {
           const message = extractErrorMessage(err, 'Invalid credentials. Please verify your details.');
@@ -71,6 +116,9 @@ export const useAuthStore = create<AuthState>()(
       register: async (data) => {
         set({ isLoading: true, error: null });
         try {
+          // Purge any previous user session artifacts
+          purgeAllCustomerSessionData();
+
           const res = await authService.register(data);
           set({
             user: res.user,
@@ -88,6 +136,7 @@ export const useAuthStore = create<AuthState>()(
 
       logout: () => {
         authService.logout();
+        purgeAllCustomerSessionData();
         set({
           user: null,
           token: null,
@@ -121,3 +170,13 @@ export const useAuthStore = create<AuthState>()(
     }
   )
 );
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('zenve-unauthorized', () => {
+    try {
+      useAuthStore.getState().logout();
+    } catch {
+      // ignore
+    }
+  });
+}

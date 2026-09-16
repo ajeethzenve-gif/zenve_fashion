@@ -12,11 +12,13 @@ import {
   Navigation,
   ShieldCheck,
   Printer,
+  Download,
   ChevronRight,
 } from 'lucide-react';
 import { orderService } from '../../services/orderService';
 import { Order, OrderStatus } from '../../types/order';
 import { formatINR } from '../../utils/formatters';
+import { OrderInvoiceModal } from '../../components/orders/OrderInvoiceModal';
 
 interface TrackingStep {
   key: string;
@@ -31,6 +33,8 @@ export const OrderDetail: React.FC = () => {
   const navigate = useNavigate();
   const [order, setOrder] = useState<Order | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isInvoiceOpen, setIsInvoiceOpen] = useState(false);
+  const [autoPrint, setAutoPrint] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -165,11 +169,15 @@ export const OrderDetail: React.FC = () => {
           </div>
 
           <button
-            onClick={() => window.print()}
-            className="inline-flex items-center space-x-2 text-[#E4BD5A] hover:text-[#F5F0DF] transition-colors self-start sm:self-auto cursor-pointer"
+            onClick={() => {
+              setAutoPrint(false);
+              setIsInvoiceOpen(true);
+            }}
+            className="inline-flex items-center space-x-2 bg-[#001C13] border border-[#E4BD5A]/40 px-3.5 py-1.5 text-[#E4BD5A] hover:bg-[#E4BD5A] hover:text-[#00140D] transition-all duration-300 self-start sm:self-auto cursor-pointer shadow-md rounded-sm group"
+            title="View Official Tax Invoice"
           >
-            <Printer className="w-4 h-4" />
-            <span className="tracking-widest uppercase text-[11px]">PRINT INVOICE</span>
+            <Printer className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
+            <span className="tracking-[0.18em] uppercase text-[10.5px] font-semibold">TAX INVOICE</span>
           </button>
         </div>
 
@@ -493,10 +501,30 @@ export const OrderDetail: React.FC = () => {
                   </span>
                 </div>
               </div>
+
+              <button
+                onClick={() => {
+                  setAutoPrint(true);
+                  setIsInvoiceOpen(true);
+                }}
+                className="w-full btn-outline-gold py-2.5 text-[11px] tracking-widest flex items-center justify-center space-x-2 cursor-pointer transition-all duration-300"
+                title="Download Official Tax Invoice as PDF"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>DOWNLOAD TAX INVOICE (PDF)</span>
+              </button>
             </div>
 
           </div>
         </div>
+
+        {/* Official Luxury Tax Invoice Modal (Identical invoice for View & PDF Download) */}
+        <OrderInvoiceModal
+          order={order}
+          isOpen={isInvoiceOpen}
+          onClose={() => setIsInvoiceOpen(false)}
+          autoPrint={autoPrint}
+        />
 
       </div>
     </div>
