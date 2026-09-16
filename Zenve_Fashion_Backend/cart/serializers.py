@@ -1,83 +1,136 @@
 from rest_framework import serializers
 
-from .models import CartItem
+from .models import Cart, CartItem
 
 
 class CartItemSerializer(serializers.ModelSerializer):
 
-    productId = serializers.IntegerField(
-        source="product_id"
+    product_id = serializers.IntegerField(
+        source="product.id",
+        read_only=True
     )
 
-    productName = serializers.CharField(
-        source="product_name"
+    product_name = serializers.CharField(
+        source="product.product_name",
+        read_only=True
     )
 
-    productImage = serializers.CharField(
-        source="product_image",
-        required=False,
-        allow_null=True,
-        allow_blank=True
+    price = serializers.DecimalField(
+        source="product.price",
+        max_digits=10,
+        decimal_places=2,
+        read_only=True
     )
+
+    image = serializers.ImageField(
+        source="product.image",
+        read_only=True
+    )
+
+    subtotal = serializers.SerializerMethodField()
 
     class Meta:
+
         model = CartItem
 
         fields = [
-            "productId",
-            "productName",
-            "productImage",
-            "quantity",
+
+            "id",
+
+            "product_id",
+
+            "product_name",
+
+            "image",
+
             "price",
-            "size",
-            "color",
+
+            "quantity",
+
+            "subtotal",
+
         ]
 
+    def get_subtotal(self, obj):
 
-class CartSyncSerializer(serializers.Serializer):
+        return obj.product.price * obj.quantity
 
-    items = serializers.ListField(
-        child=serializers.DictField(),
-        required=True
+
+class CartSerializer(serializers.ModelSerializer):
+
+    items = CartItemSerializer(
+        many=True,
+        read_only=True
     )
 
-    def validate_items(self, value):
+    total_items = serializers.SerializerMethodField()
 
-        for item in value:
+    subtotal = serializers.SerializerMethodField()
 
-            if not item.get("productId"):
-                raise serializers.ValidationError(
-                    "Each cart item must contain productId."
-                )
+    shipping_charge = serializers.SerializerMethodField()
 
-            try:
-                quantity = int(
-                    item.get("quantity", 1)
-                )
-            except (TypeError, ValueError):
+    total_price = serializers.SerializerMethodField()
 
-                raise serializers.ValidationError(
-                    "Quantity must be a valid number."
-                )
+    class Meta:
 
-            if quantity < 0:
+        model = Cart
 
-                raise serializers.ValidationError(
-                    "Quantity cannot be negative."
-                )
+        fields = [
 
-            if item.get("price") is None:
+            "id",
 
-                raise serializers.ValidationError(
-                    "Each cart item must contain price."
-                )
+            "customer",
 
-        return value
+            "items",
 
+            "total_items",
 
-class PromoSerializer(serializers.Serializer):
+            "subtotal",
 
-    code = serializers.CharField(
-        required=True,
-        max_length=100
-    )
+            "shipping_charge",
+
+            "total_price",
+
+        ]
+
+    def get_total_items(self, obj):
+
+        return sum(
+
+            item.quantity
+
+            for item in obj.items.all()
+
+        )
+
+    def get_subtotal(self, obj):
+
+        return sum(
+
+            item.product.price * item.quantity
+
+            for item in obj.items.all()
+
+        )
+
+    def get_shipping_charge(self, obj):
+
+        subtotal = self.get_subtotal(obj)
+
+        if subtotal == 0:
+
+            return 0
+
+        if subtotal >= 500:
+
+            return 0
+
+        return 50
+
+    def get_total_price(self, obj):
+
+        subtotal = self.get_subtotal(obj)
+
+        shipping = self.get_shipping_charge(obj)
+
+        return subtotal + shipping

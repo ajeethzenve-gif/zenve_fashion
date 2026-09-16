@@ -1,56 +1,242 @@
+from django.shortcuts import get_object_or_404
+
 from rest_framework.views import APIView
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.permissions import AllowAny
-from django.db import transaction
-from django.db.models import Q
+
+from accounts.models import Customer
 from products.models import Product
-from products.serializers import ProductSerializer
-from .models import WishlistItem
+
+from .models import Wishlist
+from .serializers import WishlistSerializer
 
 
-class WishlistSyncAPIView(APIView):
-    """
-    POST /api/wishlist/sync/
-    Synchronizes client wishlist product IDs and returns full Product objects.
-    """
-    permission_classes = [AllowAny]
 
-    def post(self, request):
-        product_ids = request.data.get("productIds", [])
-        if not isinstance(product_ids, list):
-            return Response([], status=status.HTTP_200_OK)
+class WishlistAPIView(APIView):
 
-        cleaned_ids = [str(pid) for pid in product_ids if pid]
+    permission_classes = [IsAuthenticated]
 
-        # Match by ID or slug
-        numeric_ids = [int(pid) for pid in cleaned_ids if pid.isdigit()]
-        slug_ids = [pid for pid in cleaned_ids if not pid.isdigit()]
 
-        products = Product.objects.filter(
-            Q(id__in=numeric_ids) | Q(slug__in=slug_ids)
+    # GET USER WISHLIST
+    def get(self, request):
+
+        customer = get_object_or_404(
+            Customer,
+            user=request.user
         )
 
-        # If user is authenticated, sync items into DB
-        if request.user and request.user.is_authenticated:
-            with transaction.atomic():
-                WishlistItem.objects.filter(user=request.user).delete()
-                for prod in products:
-                    WishlistItem.objects.create(user=request.user, product_id=prod.id)
 
-        # Maintain original order of requested IDs
-        prod_map = {}
-        for p in products:
-            prod_map[str(p.id)] = p
-            if p.slug:
-                prod_map[p.slug] = p
+        wishlist = Wishlist.objects.filter(
+            customer=customer
+        )
 
-        ordered_products = []
-        seen = set()
-        for pid in cleaned_ids:
-            if pid in prod_map and prod_map[pid].id not in seen:
-                ordered_products.append(prod_map[pid])
-                seen.add(prod_map[pid].id)
 
-        serializer = ProductSerializer(ordered_products, many=True, context={"request": request})
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        serializer = WishlistSerializer(
+            wishlist,
+            many=True,
+            context={
+                "request": request
+            }
+        )
+
+
+        return Response(
+            serializer.data
+        )
+
+
+
+    # ADD PRODUCT TO WISHLIST
+    def post(self, request):
+
+        customer = get_object_or_404(
+            Customer,
+            user=request.user
+        )
+
+
+        product_id = request.data.get("product_id")
+
+
+        product = get_object_or_404(
+            Product,
+            id=product_id
+        )
+
+
+        Wishlist.objects.get_or_create(
+
+            customer=customer,
+
+            product=product
+
+        )
+
+
+        return Response(
+            {
+                "message":"Added to wishlist"
+            },
+            status=status.HTTP_201_CREATED
+        )
+
+
+
+    # REMOVE PRODUCT
+    def delete(self, request, product_id):
+
+        customer = get_object_or_404(
+            Customer,
+            user=request.user
+        )
+
+
+        Wishlist.objects.filter(
+
+            customer=customer,
+
+            product_id=product_id
+
+        ).delete()
+
+
+
+        return Response(
+            {
+                "message":"Removed from wishlist"
+            }
+        )
+
+
+
+
+
+class ToggleWishlistAPIView(APIView):
+
+    permission_classes = [IsAuthenticated]
+
+
+    def post(self, request):
+
+
+        customer = get_object_or_404(
+
+            Customer,
+
+            user=request.user
+
+        )
+
+
+        product = get_object_or_404(
+
+            Product,
+
+            id=request.data.get("product_id")
+
+        )
+
+
+
+        wishlist_item = Wishlist.objects.filter(
+
+            customer=customer,
+
+            product=product
+
+        ).first()
+
+
+
+        # REMOVE
+        if wishlist_item:
+
+
+            wishlist_item.delete()
+
+
+            return Response(
+                {
+
+                    "in_wishlist":False,
+
+                    "message":"Removed from wishlist"
+
+                }
+            )
+
+
+
+        # ADD
+
+        Wishlist.objects.create(
+
+            customer=customer,
+
+            product=product
+
+        )
+
+
+        return Response(
+            {
+
+                "in_wishlist":True,
+
+                "message":"Added to wishlist"
+
+            }
+        )
+
+
+
+
+
+class RemoveWishlistAPIView(APIView):
+
+    permission_classes = [IsAuthenticated]
+
+
+    def delete(self, request, product_id):
+
+
+        customer = get_object_or_404(
+
+            Customer,
+
+            user=request.user
+
+        )
+
+
+        wishlist = Wishlist.objects.filter(
+
+            customer=customer,
+
+            product_id=product_id
+
+        )
+
+
+
+        if wishlist.exists():
+
+
+            wishlist.delete()
+
+
+            return Response(
+                {
+                    "message":"Removed from wishlist"
+                }
+            )
+
+
+
+        return Response(
+            {
+                "message":"Product not found in wishlist"
+            },
+            status=status.HTTP_404_NOT_FOUND
+        )

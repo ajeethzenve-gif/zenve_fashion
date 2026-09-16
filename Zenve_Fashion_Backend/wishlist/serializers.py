@@ -1,67 +1,91 @@
 from rest_framework import serializers
 
-from products.models import Product
+from .models import Wishlist
 
 
-class WishlistProductSerializer(
-    serializers.ModelSerializer
-):
+class WishlistSerializer(serializers.ModelSerializer):
 
-    category = serializers.SerializerMethodField()
-    brand = serializers.SerializerMethodField()
 
-    productName = serializers.CharField(
-        source="product_name"
+    product_name = serializers.CharField(
+        source="product.product_name",
+        read_only=True
     )
 
-    productType = serializers.CharField(
-        source="product_type"
+
+    category_name = serializers.CharField(
+        source="product.category.category_name",
+        read_only=True
     )
 
-    petType = serializers.CharField(
-        source="pet_type"
+
+    brand_name = serializers.CharField(
+        source="product.brand.brand_name",
+        read_only=True
     )
 
-    isAvailable = serializers.BooleanField(
-        source="is_available"
+
+    price = serializers.DecimalField(
+
+        source="product.price",
+
+        max_digits=10,
+
+        decimal_places=2,
+
+        read_only=True
+
     )
+
+
+    product_image = serializers.SerializerMethodField()
+
+
 
     class Meta:
 
-        model = Product
+        model = Wishlist
 
         fields = [
+
             "id",
-            "productName",
-            "description",
-            "sku",
-            "category",
-            "brand",
-            "petType",
-            "productType",
+
+            "product",
+
+            "product_name",
+
+            "category_name",
+
+            "brand_name",
+
             "price",
-            "stock",
-            "weight",
-            "isAvailable",
-            "image",
+
+            "product_image",
+
+            "created_at",
+
         ]
 
-    def get_category(self, obj):
 
-        if obj.category:
-            return {
-                "id": obj.category.id,
-                "name": obj.category.category_name,
-            }
 
-        return None
+    def get_product_image(self, obj):
 
-    def get_brand(self, obj):
 
-        if obj.brand:
-            return {
-                "id": obj.brand.id,
-                "name": obj.brand.brand_name,
-            }
+        request = self.context.get("request")
+
+
+        if obj.product.image:
+
+
+            image_url = obj.product.image.url
+
+
+            if request:
+
+                return request.build_absolute_uri(image_url)
+
+
+            return image_url
+
+
 
         return None

@@ -1,100 +1,221 @@
-from decimal import Decimal
+from django.shortcuts import get_object_or_404
+
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.permissions import AllowAny
-from django.db import transaction
-from .models import CartItem
+from rest_framework.permissions import IsAuthenticated
+
+from accounts.models import Customer
+from products.models import Product
+
+from .models import Cart, CartItem
+from .serializers import CartSerializer
 
 
-class CartSyncAPIView(APIView):
-    """
-    POST /api/cart/sync/
-    Synchronizes cart items for both authenticated and guest shoppers.
-    """
-    permission_classes = [AllowAny]
+class CartAPIView(APIView):
 
-    def post(self, request):
-        raw_items = request.data.get("items", [])
-        if not isinstance(raw_items, list):
-            return Response({"message": "items must be a list."}, status=status.HTTP_400_BAD_REQUEST)
+    permission_classes = [IsAuthenticated]
 
-        # If user is authenticated, sync to DB
-        if request.user and request.user.is_authenticated:
-            with transaction.atomic():
-                # Clear previous or reconcile
-                CartItem.objects.filter(user=request.user).delete()
-                for item in raw_items:
-                    product_data = item.get("product") if isinstance(item.get("product"), dict) else {}
-                    prod_id_val = product_data.get("id") or item.get("productId") or 1
-                    try:
-                        pid = int(prod_id_val)
-                    except (ValueError, TypeError):
-                        pid = 1
+    def get(self, request):
 
-                    name = product_data.get("name") or item.get("productName") or "Atelier Piece"
-                    imgs = product_data.get("images") or [item.get("productImage")]
-                    img = imgs[0] if imgs and imgs[0] else ""
-                    qty = max(1, int(item.get("quantity", 1)))
-                    price = Decimal(str(item.get("price") or product_data.get("price") or 0))
+        customer = get_object_or_404(
+            Customer,
+            user=request.user
+        )
 
-                    selected_size = item.get("selectedSize") or item.get("size") or ""
-                    selected_color = item.get("selectedColor")
-                    color_str = ""
-                    if isinstance(selected_color, dict):
-                        color_str = selected_color.get("name", "")
-                    elif isinstance(selected_color, str):
-                        color_str = selected_color
+        cart, created = Cart.objects.get_or_create(
+            customer=customer
+        )
 
-                    CartItem.objects.create(
-                        user=request.user,
-                        product_id=pid,
-                        product_name=name,
-                        product_image=img,
-                        quantity=qty,
-                        price=price,
-                        size=selected_size,
-                        color=color_str,
-                    )
+        serializer = CartSerializer(cart)
 
-        # Return items exactly as frontend expects
-        return Response(raw_items, status=status.HTTP_200_OK)
+        return Response(serializer.data)
 
 
-class CartPromoAPIView(APIView):
-    """
-    POST /api/cart/promo/
-    Validates luxury atelier invitation and promo codes.
-    Available to all shoppers (guest & authenticated).
-    """
-    permission_classes = [AllowAny]
+class AddToCartAPIView(APIView):
+
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        code = str(request.data.get("code", "")).strip().upper()
 
-        promo_map = {
-            "ZENVE10": (10, "10% Atelier Welcome Privileges Applied"),
-            "TWINLOVE": (15, "15% Twin Edit Privilege Applied"),
-            "WELCOME20": (20, "20% Exclusive Member Privilege Applied"),
-            "FASHION15": (15, "15% Haute Couture Privilege Applied"),
-        }
+        customer = get_object_or_404(
+            Customer,
+            user=request.user
+        )
 
-        if code in promo_map:
-            discount, message = promo_map[code]
+        cart, created = Cart.objects.get_or_create(
+            customer=customer
+        )
+
+        product_id = request.data.get("product_id")
+
+        quantity = int(request.data.get("quantity", 1))
+
+        product = get_object_or_404(
+            Product,
+            id=product_id
+        )
+
+        if quantity <= 0:
+
             return Response(
                 {
-                    "valid": True,
-                    "discountPercentage": discount,
-                    "message": message,
+                    "message": "Quantity must be greater than zero."
                 },
-                status=status.HTTP_200_OK,
+                status=status.HTTP_400_BAD_REQUEST
             )
 
+        if quantity > product.stock:
+
+            return Response(
+                {
+                    "message": "Insufficient stock."
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        cart_item, created = CartItem.objects.get_or_create(
+
+            cart=cart,
+
+            product=product,
+
+            defaults={
+                "quantity": quantity
+            }
+
+        )
+
+        if not created:
+
+            new_quantity = cart_item.quantity + quantity
+
+            if new_quantity > product.stock:
+
+                return Response(
+                    {
+                        "message": "Insufficient stock."
+                    },
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            cart_item.quantity = new_quantity
+
+            cart_item.save()
+
+        serializer = CartSerializer(cart)
+
         return Response(
+
             {
-                "valid": False,
-                "discountPercentage": 0,
-                "message": "Invalid or expired invitation code.",
+                "message": "Product added to cart.",
+                "cart": serializer.data
             },
-            status=status.HTTP_200_OK,
+
+            status=status.HTTP_200_OK
+
+        )
+
+
+class UpdateCartAPIView(APIView):
+
+    permission_classes = [IsAuthenticated]
+
+    def put(self, request):
+
+        customer = get_object_or_404(
+            Customer,
+            user=request.user
+        )
+
+        cart = get_object_or_404(
+            Cart,
+            customer=customer
+        )
+
+        product_id = request.data.get("product_id")
+
+        quantity = int(request.data.get("quantity"))
+
+        cart_item = get_object_or_404(
+
+            CartItem,
+
+            cart=cart,
+
+            product_id=product_id
+
+        )
+
+        if quantity <= 0:
+
+            cart_item.delete()
+
+        else:
+
+            if quantity > cart_item.product.stock:
+
+                return Response(
+
+                    {
+                        "message": "Insufficient stock."
+                    },
+
+                    status=status.HTTP_400_BAD_REQUEST
+
+                )
+
+            cart_item.quantity = quantity
+
+            cart_item.save()
+
+        serializer = CartSerializer(cart)
+
+        return Response(
+
+            {
+                "message": "Cart updated successfully.",
+                "cart": serializer.data
+            }
+
+        )
+
+
+class RemoveCartItemAPIView(APIView):
+
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, product_id):
+
+        customer = get_object_or_404(
+            Customer,
+            user=request.user
+        )
+
+        cart = get_object_or_404(
+            Cart,
+            customer=customer
+        )
+
+        cart_item = get_object_or_404(
+
+            CartItem,
+
+            cart=cart,
+
+            product_id=product_id
+
+        )
+
+        cart_item.delete()
+
+        serializer = CartSerializer(cart)
+
+        return Response(
+
+            {
+                "message": "Product removed from cart.",
+                "cart": serializer.data
+            }
+
         )

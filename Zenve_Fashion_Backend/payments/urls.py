@@ -1,9 +1,23 @@
 from django.urls import path
-from .views import PaymentInitiateAPIView, PaymentVerifyAPIView
+
+from .views import (
+    CreateRazorpayOrderAPIView,
+    VerifyRazorpayPaymentAPIView,
+)
+
 
 urlpatterns = [
-    path("initiate", PaymentInitiateAPIView.as_view(), name="payment-initiate-noslash"),
-    path("initiate/", PaymentInitiateAPIView.as_view(), name="payment-initiate"),
-    path("verify", PaymentVerifyAPIView.as_view(), name="payment-verify-noslash"),
-    path("verify/", PaymentVerifyAPIView.as_view(), name="payment-verify"),
+
+    path(
+        "create-order/",
+        CreateRazorpayOrderAPIView.as_view(),
+        name="create-razorpay-order"
+    ),
+
+    path(
+        "verify/",
+        VerifyRazorpayPaymentAPIView.as_view(),
+        name="verify-razorpay-payment"
+    ),
+
 ]

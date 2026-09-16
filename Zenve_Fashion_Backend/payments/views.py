@@ -1,123 +1,252 @@
-import os
-import uuid
-import logging
+import razorpay
+
 from decimal import Decimal
+
 from django.conf import settings
+from django.db import transaction
+
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
-from rest_framework.permissions import AllowAny
-from orders.models import Order
+
 from .models import Payment
+from .serializers import CreatePaymentSerializer
 
-logger = logging.getLogger(__name__)
+
+# ==========================================
+# RAZORPAY CLIENT
+# ==========================================
+
+razorpay_client = razorpay.Client(
+    auth=(
+        settings.RAZORPAY_KEY_ID,
+        settings.RAZORPAY_KEY_SECRET,
+    )
+)
 
 
-class PaymentInitiateAPIView(APIView):
-    """
-    POST /api/payments/initiate/
-    Creates payment order / session for Razorpay, Stripe, or COD.
-    """
-    permission_classes = [AllowAny]
+# ==========================================
+# CREATE RAZORPAY ORDER
+# ==========================================
+
+class CreateRazorpayOrderAPIView(APIView):
+
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        order_id = str(request.data.get("orderId", f"ord-{uuid.uuid4().hex[:8]}"))
-        amount = float(request.data.get("amount", 0))
-        currency = str(request.data.get("currency", "INR")).upper()
-        gateway = str(request.data.get("gateway", "razorpay")).lower()
 
-        if gateway == "cod":
-            return Response(
-                {
-                    "paymentId": f"pay-cod-{uuid.uuid4().hex[:10]}",
-                    "orderId": order_id,
-                    "amount": amount,
-                    "currency": currency,
-                },
-                status=status.HTTP_200_OK,
+        serializer = CreatePaymentSerializer(
+            data=request.data
+        )
+
+        serializer.is_valid(
+            raise_exception=True
+        )
+
+        amount = serializer.validated_data["amount"]
+
+        currency = serializer.validated_data.get(
+            "currency",
+            "INR"
+        )
+
+        try:
+
+            # Razorpay requires amount in paise
+            amount_in_paise = int(
+                Decimal(amount) * 100
             )
 
-        key_id = os.getenv("RAZORPAY_KEY_ID") or getattr(settings, "RAZORPAY_KEY_ID", None)
-        key_secret = os.getenv("RAZORPAY_KEY_SECRET") or getattr(settings, "RAZORPAY_KEY_SECRET", None)
-
-        if key_id and key_secret and gateway == "razorpay":
-            try:
-                import razorpay
-                client = razorpay.Client(auth=(key_id, key_secret))
-                razorpay_order = client.order.create({
-                    "amount": int(round(amount * 100)),
+            razorpay_order = razorpay_client.order.create(
+                {
+                    "amount": amount_in_paise,
                     "currency": currency,
-                    "receipt": order_id[-40:],
                     "payment_capture": 1,
-                })
+                }
+            )
+
+            # Save payment record
+            Payment.objects.create(
+                user=request.user,
+                razorpay_order_id=razorpay_order["id"],
+                amount=amount,
+                currency=currency,
+                status="created",
+            )
+
+            return Response(
+                {
+                    "success": True,
+                    "razorpay_order_id": razorpay_order["id"],
+                    "amount": razorpay_order["amount"],
+                    "currency": razorpay_order["currency"],
+                    "key": settings.RAZORPAY_KEY_ID,
+                },
+                status=status.HTTP_201_CREATED
+            )
+
+        except Exception as error:
+
+            print(
+                "RAZORPAY CREATE ERROR:",
+                str(error)
+            )
+
+            return Response(
+                {
+                    "success": False,
+                    "message": str(error),
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+# ==========================================
+# VERIFY RAZORPAY PAYMENT
+# ==========================================
+
+class VerifyRazorpayPaymentAPIView(APIView):
+
+    permission_classes = [IsAuthenticated]
+
+    @transaction.atomic
+    def post(self, request):
+
+        razorpay_payment_id = request.data.get(
+            "razorpay_payment_id"
+        )
+
+        razorpay_order_id = request.data.get(
+            "razorpay_order_id"
+        )
+
+        razorpay_signature = request.data.get(
+            "razorpay_signature"
+        )
+
+        # ------------------------------------------
+        # VALIDATE REQUIRED DATA
+        # ------------------------------------------
+
+        if not razorpay_payment_id:
+            return Response(
+                {
+                    "success": False,
+                    "message": "razorpay_payment_id is required."
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if not razorpay_order_id:
+            return Response(
+                {
+                    "success": False,
+                    "message": "razorpay_order_id is required."
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if not razorpay_signature:
+            return Response(
+                {
+                    "success": False,
+                    "message": "razorpay_signature is required."
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+
+            # ------------------------------------------
+            # FIND PAYMENT
+            # ------------------------------------------
+
+            payment = Payment.objects.select_for_update().get(
+                razorpay_order_id=razorpay_order_id,
+                user=request.user
+            )
+
+            # Prevent duplicate verification
+            if payment.status == "success":
+
                 return Response(
                     {
-                        "paymentId": razorpay_order["id"],
-                        "gatewayKeyId": key_id,
-                        "orderId": order_id,
-                        "amount": amount,
-                        "currency": currency,
-                    },
-                    status=status.HTTP_200_OK,
+                        "success": True,
+                        "message": "Payment already verified.",
+                        "payment_id": payment.razorpay_payment_id,
+                    }
                 )
-            except Exception as e:
-                logger.warning(f"Razorpay order creation fallback: {e}")
 
-        # Fallback seamless test payment response
-        mock_payment_id = f"pay_zenve_{uuid.uuid4().hex[:12]}"
-        return Response(
-            {
-                "paymentId": mock_payment_id,
-                "gatewayKeyId": key_id or "rzp_test_zenve_atelier",
-                "orderId": order_id,
-                "amount": amount,
-                "currency": currency,
-            },
-            status=status.HTTP_200_OK,
-        )
+            # ------------------------------------------
+            # VERIFY RAZORPAY SIGNATURE
+            # ------------------------------------------
 
+            razorpay_client.utility.verify_payment_signature(
+                {
+                    "razorpay_order_id": razorpay_order_id,
+                    "razorpay_payment_id": razorpay_payment_id,
+                    "razorpay_signature": razorpay_signature,
+                }
+            )
 
-class PaymentVerifyAPIView(APIView):
-    """
-    POST /api/payments/verify/
-    Verifies gateway signature and updates order payment status.
-    """
-    permission_classes = [AllowAny]
+            # ------------------------------------------
+            # PAYMENT SUCCESS
+            # ------------------------------------------
 
-    def post(self, request):
-        order_id = str(request.data.get("orderId", "")).replace("ord-", "").strip()
-        payment_id = str(request.data.get("paymentId", "")).strip()
-        signature = request.data.get("signature")
+            payment.razorpay_payment_id = (
+                razorpay_payment_id
+            )
 
-        # Update order if it exists
-        order = None
-        if order_id.isdigit():
-            order = Order.objects.filter(id=int(order_id)).first()
-        if not order:
-            order = Order.objects.filter(order_number__iexact=str(request.data.get("orderId", ""))).first()
+            payment.razorpay_signature = (
+                razorpay_signature
+            )
 
-        if order:
-            order.payment_status = "Paid"
-            order.order_status = "Confirmed"
-            order.save(update_fields=["payment_status", "order_status"])
+            payment.status = "success"
 
-            try:
-                Payment.objects.create(
-                    order=order,
-                    payment_id=payment_id,
-                    amount=order.total,
-                    currency="INR",
-                    payment_method=order.payment_method,
-                    status="SUCCESS",
-                )
-            except Exception:
-                pass
+            payment.save()
 
-        return Response(
-            {
-                "success": True,
-                "status": "captured",
-                "message": "Atelier payment verified successfully.",
-            },
-            status=status.HTTP_200_OK,
-        )
+            return Response(
+                {
+                    "success": True,
+                    "message": "Payment verified successfully.",
+                    "payment_id": razorpay_payment_id,
+                    "razorpay_order_id": razorpay_order_id,
+                },
+                status=status.HTTP_200_OK
+            )
+
+        except Payment.DoesNotExist:
+
+            return Response(
+                {
+                    "success": False,
+                    "message": "Payment record not found."
+                },
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        except razorpay.errors.SignatureVerificationError:
+
+            return Response(
+                {
+                    "success": False,
+                    "message": "Payment signature verification failed."
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        except Exception as error:
+
+            print(
+                "RAZORPAY VERIFY ERROR:",
+                str(error)
+            )
+
+            return Response(
+                {
+                    "success": False,
+                    "message": str(error),
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

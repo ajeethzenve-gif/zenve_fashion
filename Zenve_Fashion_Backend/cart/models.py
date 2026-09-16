@@ -1,45 +1,15 @@
 from django.db import models
-from django.contrib.auth.models import User
+
+from accounts.models import Customer
+from products.models import Product
 
 
-class CartItem(models.Model):
-    user = models.ForeignKey(
-        User,
+class Cart(models.Model):
+
+    customer = models.OneToOneField(
+        Customer,
         on_delete=models.CASCADE,
-        related_name="cart_items"
-    )
-
-    product_id = models.IntegerField()
-
-    product_name = models.CharField(
-        max_length=255
-    )
-
-    product_image = models.URLField(
-        max_length=500,
-        blank=True,
-        null=True
-    )
-
-    quantity = models.PositiveIntegerField(
-        default=1
-    )
-
-    price = models.DecimalField(
-        max_digits=12,
-        decimal_places=2
-    )
-
-    size = models.CharField(
-        max_length=100,
-        blank=True,
-        null=True
-    )
-
-    color = models.CharField(
-        max_length=100,
-        blank=True,
-        null=True
+        related_name="cart"
     )
 
     created_at = models.DateTimeField(
@@ -50,19 +20,33 @@ class CartItem(models.Model):
         auto_now=True
     )
 
+    def __str__(self):
+        return self.customer.user.username
+
+
+class CartItem(models.Model):
+
+    cart = models.ForeignKey(
+        Cart,
+        on_delete=models.CASCADE,
+        related_name="items"
+    )
+
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.CASCADE
+    )
+
+    quantity = models.PositiveIntegerField(
+        default=1
+    )
+
     class Meta:
-        ordering = ["-updated_at"]
-        constraints = [
-            models.UniqueConstraint(
-                fields=[
-                    "user",
-                    "product_id",
-                    "size",
-                    "color"
-                ],
-                name="unique_user_cart_product_variant"
-            )
-        ]
+        unique_together = ("cart", "product")
+
+    @property
+    def subtotal(self):
+        return self.product.price * self.quantity
 
     def __str__(self):
-        return f"{self.user.username} - {self.product_name}"
+        return f"{self.product.product_name} ({self.quantity})"
