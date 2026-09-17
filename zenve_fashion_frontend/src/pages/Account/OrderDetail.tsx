@@ -14,6 +14,8 @@ import {
   Printer,
   Download,
   ChevronRight,
+  XCircle,
+  RotateCcw,
 } from 'lucide-react';
 import { orderService } from '../../services/orderService';
 import { Order, OrderStatus } from '../../types/order';
@@ -75,6 +77,63 @@ export const OrderDetail: React.FC = () => {
     );
   }
 
+  const normStatus = (order.orderStatus || '').toLowerCase().replace(/_/g, ' ').trim();
+  const isCancelled = normStatus === 'cancelled';
+  const isReturned = normStatus === 'returned';
+  const isDelivered = normStatus === 'delivered';
+
+  // Map order status to numeric step index (0 to 4)
+  const getActiveStepIndex = (statusStr: string): number => {
+    const s = (statusStr || '').toLowerCase().replace(/_/g, ' ').trim();
+    switch (s) {
+      case 'pending':
+      case 'placed':
+      case 'confirmed':
+        return 0;
+      case 'processing':
+        return 1;
+      case 'shipped':
+        return 2;
+      case 'out for delivery':
+      case 'out_for_delivery':
+        return 3;
+      case 'delivered':
+        return 4;
+      default:
+        return 0;
+    }
+  };
+
+  const activeIndex = getActiveStepIndex(order.orderStatus);
+
+  const getStatusDisplay = (statusStr: string) => {
+    const s = (statusStr || '').toLowerCase().replace(/_/g, ' ').trim();
+    switch (s) {
+      case 'pending':
+        return { label: 'ORDER PENDING', badgeClass: 'text-[#E4BD5A] border-[#E4BD5A]/40' };
+      case 'placed':
+      case 'confirmed':
+        return { label: 'ORDER CONFIRMED', badgeClass: 'text-[#E4BD5A] border-[#E4BD5A]/40' };
+      case 'processing':
+        return { label: 'ATELIER TAILORING', badgeClass: 'text-[#E4BD5A] border-[#E4BD5A]/50' };
+      case 'shipped':
+        return { label: 'DISPATCHED / IN TRANSIT', badgeClass: 'text-[#E4BD5A] border-[#E4BD5A]' };
+      case 'out for delivery':
+      case 'out_for_delivery':
+        return { label: 'OUT FOR DELIVERY', badgeClass: 'text-[#E4BD5A] border-[#E4BD5A]' };
+      case 'delivered':
+        return { label: 'HAND-DELIVERED', badgeClass: 'text-emerald-400 border-emerald-500/60' };
+      case 'cancelled':
+        return { label: 'COMMISSION CANCELLED', badgeClass: 'text-rose-400 border-rose-500/60' };
+      case 'returned':
+        return { label: 'COMMISSION RETURNED', badgeClass: 'text-amber-400 border-amber-500/60' };
+      default:
+        return { label: (statusStr || '').toUpperCase(), badgeClass: 'text-[#E4BD5A] border-[#E4BD5A]/30' };
+    }
+  };
+
+  const statusDisplay = getStatusDisplay(order.orderStatus);
+
   // Calculate current stage index in tracking flow
   const trackingSteps: TrackingStep[] = [
     {
@@ -95,7 +154,7 @@ export const OrderDetail: React.FC = () => {
       subtitle: 'Artisan Inspection & Cut',
       icon: Scissors,
       timestamp:
-        order.orderStatus !== 'placed'
+        activeIndex >= 1
           ? new Date(new Date(order.createdAt).getTime() + 86400000).toLocaleDateString('en-IN', {
               month: 'short',
               day: 'numeric',
@@ -110,7 +169,7 @@ export const OrderDetail: React.FC = () => {
       subtitle: 'Zenve White-Glove Logistics',
       icon: Truck,
       timestamp:
-        order.orderStatus === 'shipped' || order.orderStatus === 'delivered'
+        activeIndex >= 2
           ? 'Bengaluru Central Hub'
           : 'Pending dispatch',
     },
@@ -120,34 +179,20 @@ export const OrderDetail: React.FC = () => {
       subtitle: 'Courier Concierge En Route',
       icon: Navigation,
       timestamp:
-        order.orderStatus === 'delivered' ? 'Completed' : 'Expected: ' + (order.estimatedDelivery || 'Tomorrow'),
+        activeIndex >= 4
+          ? 'Completed'
+          : activeIndex === 3
+          ? 'Courier Concierge En Route'
+          : 'Expected: ' + (order.estimatedDelivery || 'In 2-3 Business Days'),
     },
     {
       key: 'delivered',
       label: 'Hand-Delivered',
       subtitle: 'Received into Client Care',
       icon: CheckCircle,
-      timestamp: order.orderStatus === 'delivered' ? 'Hand-Delivered' : 'Pending final handover',
+      timestamp: activeIndex >= 4 ? 'Hand-Delivered to Client' : 'Pending final handover',
     },
   ];
-
-  // Map order status to numeric step index (0 to 4)
-  const getActiveStepIndex = (status: OrderStatus): number => {
-    switch (status) {
-      case 'placed':
-        return 0;
-      case 'processing':
-        return 1;
-      case 'shipped':
-        return 2; // For demo purposes, shipped shows step 2 as active/current
-      case 'delivered':
-        return 4;
-      default:
-        return 2;
-    }
-  };
-
-  const activeIndex = getActiveStepIndex(order.orderStatus);
 
   return (
     <div className="w-full bg-[#00140D] min-h-screen py-10 sm:py-16 text-left text-[#F5F0DF]">
@@ -214,154 +259,186 @@ export const OrderDetail: React.FC = () => {
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
-              <div className="bg-[#00140D] border border-[#E4BD5A]/40 px-4 py-2.5 flex items-center space-x-2.5">
-                <span className="w-2 h-2 rounded-full bg-[#E4BD5A] animate-ping" />
-                <span className="text-xs tracking-wider uppercase font-semibold text-[#E4BD5A]">
-                  STATUS: {order.orderStatus === 'shipped' ? 'DISPATCHED / IN TRANSIT' : order.orderStatus.toUpperCase()}
+              <div className={`bg-[#00140D] border ${statusDisplay.badgeClass} px-4 py-2.5 flex items-center space-x-2.5`}>
+                {!isCancelled && !isReturned && (
+                  <span className={`w-2 h-2 rounded-full ${isDelivered ? 'bg-emerald-400' : 'bg-[#E4BD5A] animate-ping'}`} />
+                )}
+                <span className="text-xs tracking-wider uppercase font-semibold">
+                  STATUS: {statusDisplay.label}
                 </span>
               </div>
 
               <div className="bg-[#002418] border border-[#E4BD5A]/25 px-4 py-2.5 text-xs">
                 <span className="text-[10px] text-[#B8B9A8] block uppercase">ESTIMATED ARRIVAL</span>
                 <span className="text-[#F5F0DF] font-serif font-medium text-sm">
-                  {order.estimatedDelivery || 'Tomorrow by 6:00 PM'}
+                  {order.estimatedDelivery || '3-5 Business Days'}
                 </span>
               </div>
             </div>
           </div>
 
-          {/* 2. SHIPMENT TRACKING STEPPER (Requested by User) */}
-          <div className="pt-8 pb-4">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xs font-semibold tracking-[0.25em] uppercase text-[#E4BD5A] flex items-center space-x-2">
-                <Truck className="w-4 h-4" />
-                <span>WHITE-GLOVE SHIPMENT PROGRESS</span>
-              </h3>
-              <span className="text-[11px] text-[#B8B9A8]">
-                Carrier: <strong className="text-[#F5F0DF]">Zenve Express Courier</strong>
-              </span>
+          {/* 2. SHIPMENT TRACKING STEPPER / CANCELLED NOTICE */}
+          {isCancelled ? (
+            <div className="pt-6 pb-2">
+              <div className="bg-rose-950/30 border border-rose-500/40 p-6 flex items-start space-x-4">
+                <XCircle className="w-6 h-6 text-rose-400 flex-shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <h3 className="font-serif text-base text-rose-300 tracking-wide uppercase">
+                    Atelier Commission Cancelled
+                  </h3>
+                  <p className="text-xs text-[#B8B9A8]">
+                    This commission has been cancelled. Any payment captured is refunded to your original payment method. If you require assistance, our atelier concierge is at your service.
+                  </p>
+                </div>
+              </div>
             </div>
+          ) : isReturned ? (
+            <div className="pt-6 pb-2">
+              <div className="bg-amber-950/30 border border-amber-500/40 p-6 flex items-start space-x-4">
+                <RotateCcw className="w-6 h-6 text-amber-400 flex-shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <h3 className="font-serif text-base text-amber-300 tracking-wide uppercase">
+                    Atelier Piece Returned
+                  </h3>
+                  <p className="text-xs text-[#B8B9A8]">
+                    This commission has been returned and safely archived at the Zenve Atelier hub.
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="pt-8 pb-4">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xs font-semibold tracking-[0.25em] uppercase text-[#E4BD5A] flex items-center space-x-2">
+                  <Truck className="w-4 h-4" />
+                  <span>WHITE-GLOVE SHIPMENT PROGRESS</span>
+                </h3>
+                <span className="text-[11px] text-[#B8B9A8]">
+                  Carrier: <strong className="text-[#F5F0DF]">Zenve Express Courier</strong>
+                </span>
+              </div>
 
-            {/* Desktop Stepper */}
-            <div className="relative hidden md:block">
-              {/* Background Line */}
-              <div className="absolute top-5 left-8 right-8 h-0.5 bg-[#002B1D] border-t border-[#E4BD5A]/20 -z-0" />
-              {/* Active Highlight Line */}
-              <div
-                className="absolute top-5 left-8 h-0.5 bg-[#E4BD5A] transition-all duration-500 -z-0 shadow-[0_0_8px_rgba(228,189,90,0.6)]"
-                style={{
-                  width: `${(activeIndex / (trackingSteps.length - 1)) * 90}%`,
-                }}
-              />
+              {/* Desktop Stepper */}
+              <div className="relative hidden md:block">
+                {/* Background Line */}
+                <div className="absolute top-5 left-8 right-8 h-0.5 bg-[#002B1D] border-t border-[#E4BD5A]/20 -z-0" />
+                {/* Active Highlight Line */}
+                <div
+                  className="absolute top-5 left-8 h-0.5 bg-[#E4BD5A] transition-all duration-500 -z-0 shadow-[0_0_8px_rgba(228,189,90,0.6)]"
+                  style={{
+                    width: isDelivered ? 'calc(100% - 4rem)' : `${(activeIndex / (trackingSteps.length - 1)) * 90}%`,
+                  }}
+                />
 
-              <div className="grid grid-cols-5 gap-2 relative z-10">
+                <div className="grid grid-cols-5 gap-2 relative z-10">
+                  {trackingSteps.map((step, idx) => {
+                    const isCompleted = isDelivered ? true : idx < activeIndex;
+                    const isCurrent = isDelivered ? false : idx === activeIndex;
+                    const StepIcon = step.icon;
+
+                    return (
+                      <div key={step.key} className="flex flex-col items-center text-center space-y-2">
+                        {/* Step Circle */}
+                        <div
+                          className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 ${
+                            isCompleted
+                              ? 'bg-[#002B1D] border-2 border-emerald-400 text-emerald-400'
+                              : isCurrent
+                              ? 'bg-[#E4BD5A] text-[#00140D] border-2 border-[#F5F0DF] shadow-[0_0_15px_rgba(228,189,90,0.8)] ring-4 ring-[#E4BD5A]/30'
+                              : 'bg-[#001710] border border-[#E4BD5A]/25 text-[#B8B9A8]/60'
+                          }`}
+                        >
+                          {isCompleted ? (
+                            <CheckCircle className="w-5 h-5" />
+                          ) : (
+                            <StepIcon className="w-5 h-5 stroke-[2]" />
+                          )}
+                        </div>
+
+                        {/* Step Title */}
+                        <div className="space-y-0.5">
+                          <span
+                            className={`text-xs font-semibold block tracking-wider uppercase ${
+                              isCurrent
+                                ? 'text-[#E4BD5A]'
+                                : isCompleted
+                                ? 'text-[#F5F0DF]'
+                                : 'text-[#B8B9A8]/70'
+                            }`}
+                          >
+                            {step.label}
+                          </span>
+                          <span className="text-[10px] text-[#B8B9A8] block leading-tight">
+                            {step.subtitle}
+                          </span>
+                          <span className="text-[9px] font-mono text-[#E4BD5A]/80 block pt-0.5">
+                            {step.timestamp}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Mobile Vertical Stepper */}
+              <div className="block md:hidden space-y-4 pt-2">
                 {trackingSteps.map((step, idx) => {
-                  const isCompleted = idx < activeIndex;
-                  const isCurrent = idx === activeIndex;
+                  const isCompleted = isDelivered ? true : idx < activeIndex;
+                  const isCurrent = isDelivered ? false : idx === activeIndex;
                   const StepIcon = step.icon;
 
                   return (
-                    <div key={step.key} className="flex flex-col items-center text-center space-y-2">
-                      {/* Step Circle */}
-                      <div
-                        className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 ${
-                          isCompleted
-                            ? 'bg-[#002B1D] border-2 border-[#E4BD5A] text-[#E4BD5A]'
-                            : isCurrent
-                            ? 'bg-[#E4BD5A] text-[#00140D] border-2 border-[#F5F0DF] shadow-[0_0_15px_rgba(228,189,90,0.8)] ring-4 ring-[#E4BD5A]/30'
-                            : 'bg-[#001710] border border-[#E4BD5A]/25 text-[#B8B9A8]/60'
-                        }`}
-                      >
-                        {isCompleted ? (
-                          <CheckCircle className="w-5 h-5" />
-                        ) : (
-                          <StepIcon className="w-5 h-5 stroke-[2]" />
+                    <div key={step.key} className="flex items-start space-x-3.5 text-left">
+                      <div className="flex flex-col items-center">
+                        <div
+                          className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                            isCompleted
+                              ? 'bg-[#002B1D] border-2 border-emerald-400 text-emerald-400'
+                              : isCurrent
+                              ? 'bg-[#E4BD5A] text-[#00140D] shadow-[0_0_10px_rgba(228,189,90,0.7)]'
+                              : 'bg-[#001710] border border-[#E4BD5A]/20 text-[#B8B9A8]/50'
+                          }`}
+                        >
+                          {isCompleted ? (
+                            <CheckCircle className="w-4 h-4" />
+                          ) : (
+                            <StepIcon className="w-4 h-4" />
+                          )}
+                        </div>
+                        {idx < trackingSteps.length - 1 && (
+                          <div
+                            className={`w-0.5 h-10 ${
+                              isCompleted ? 'bg-emerald-400' : 'bg-[#002B1D] border-l border-[#E4BD5A]/20'
+                            }`}
+                          />
                         )}
                       </div>
 
-                      {/* Step Title */}
-                      <div className="space-y-0.5">
-                        <span
-                          className={`text-xs font-semibold block tracking-wider uppercase ${
-                            isCurrent
-                              ? 'text-[#E4BD5A]'
-                              : isCompleted
-                              ? 'text-[#F5F0DF]'
-                              : 'text-[#B8B9A8]/70'
-                          }`}
-                        >
-                          {step.label}
-                        </span>
-                        <span className="text-[10px] text-[#B8B9A8] block leading-tight">
-                          {step.subtitle}
-                        </span>
-                        <span className="text-[9px] font-mono text-[#E4BD5A]/80 block pt-0.5">
-                          {step.timestamp}
-                        </span>
+                      <div className="pt-0.5 space-y-0.5">
+                        <div className="flex items-center space-x-2">
+                          <span
+                            className={`text-xs font-semibold uppercase tracking-wider ${
+                              isCurrent ? 'text-[#E4BD5A]' : isCompleted ? 'text-[#F5F0DF]' : 'text-[#B8B9A8]'
+                            }`}
+                          >
+                            {step.label}
+                          </span>
+                          {isCurrent && (
+                            <span className="bg-[#E4BD5A]/20 text-[#E4BD5A] border border-[#E4BD5A]/40 text-[9px] px-1.5 py-0.2 font-mono uppercase">
+                              CURRENT
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-[#B8B9A8]">{step.subtitle}</p>
+                        <p className="text-[10px] text-[#E4BD5A]/75 font-mono">{step.timestamp}</p>
                       </div>
                     </div>
                   );
                 })}
               </div>
             </div>
-
-            {/* Mobile Vertical Stepper */}
-            <div className="block md:hidden space-y-4 pt-2">
-              {trackingSteps.map((step, idx) => {
-                const isCompleted = idx < activeIndex;
-                const isCurrent = idx === activeIndex;
-                const StepIcon = step.icon;
-
-                return (
-                  <div key={step.key} className="flex items-start space-x-3.5 text-left">
-                    <div className="flex flex-col items-center">
-                      <div
-                        className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                          isCompleted
-                            ? 'bg-[#002B1D] border-2 border-[#E4BD5A] text-[#E4BD5A]'
-                            : isCurrent
-                            ? 'bg-[#E4BD5A] text-[#00140D] shadow-[0_0_10px_rgba(228,189,90,0.7)]'
-                            : 'bg-[#001710] border border-[#E4BD5A]/20 text-[#B8B9A8]/50'
-                        }`}
-                      >
-                        {isCompleted ? (
-                          <CheckCircle className="w-4 h-4" />
-                        ) : (
-                          <StepIcon className="w-4 h-4" />
-                        )}
-                      </div>
-                      {idx < trackingSteps.length - 1 && (
-                        <div
-                          className={`w-0.5 h-10 ${
-                            isCompleted ? 'bg-[#E4BD5A]' : 'bg-[#002B1D] border-l border-[#E4BD5A]/20'
-                          }`}
-                        />
-                      )}
-                    </div>
-
-                    <div className="pt-0.5 space-y-0.5">
-                      <div className="flex items-center space-x-2">
-                        <span
-                          className={`text-xs font-semibold uppercase tracking-wider ${
-                            isCurrent ? 'text-[#E4BD5A]' : isCompleted ? 'text-[#F5F0DF]' : 'text-[#B8B9A8]'
-                          }`}
-                        >
-                          {step.label}
-                        </span>
-                        {isCurrent && (
-                          <span className="bg-[#E4BD5A]/20 text-[#E4BD5A] border border-[#E4BD5A]/40 text-[9px] px-1.5 py-0.2 font-mono uppercase">
-                            CURRENT
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-[11px] text-[#B8B9A8]">{step.subtitle}</p>
-                      <p className="text-[10px] text-[#E4BD5A]/75 font-mono">{step.timestamp}</p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+          )}
         </div>
 
         {/* 3. MAIN CONTENT: ITEMS & METRICS 2-COL GRID */}

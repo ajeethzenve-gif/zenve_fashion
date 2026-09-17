@@ -1,8 +1,18 @@
 import { CartItem } from './cart';
 import { Address } from './user';
 
-export type PaymentStatus = 'pending' | 'completed' | 'failed' | 'refunded';
-export type OrderStatus = 'placed' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+export type PaymentStatus = 'pending' | 'paid' | 'completed' | 'failed' | 'refunded' | 'partially refunded';
+export type OrderStatus =
+  | 'pending'
+  | 'placed'
+  | 'confirmed'
+  | 'processing'
+  | 'shipped'
+  | 'out for delivery'
+  | 'out_for_delivery'
+  | 'delivered'
+  | 'cancelled'
+  | 'returned';
 export type PaymentMethodType = 'card' | 'upi' | 'netbanking' | 'cod' | 'razorpay';
 
 export interface Order {

@@ -48,7 +48,20 @@ class OrderListCreateAPIView(APIView):
         total = Decimal(str(data.get("total", 0)))
         payment_method = str(data.get("paymentMethod", "cod")).upper()
         payment_status = str(data.get("paymentStatus", "pending")).capitalize()
-        order_status = str(data.get("orderStatus", "placed")).capitalize()
+        raw_order_status = str(data.get("orderStatus") or data.get("order_status") or "Placed").strip()
+        clean_os = raw_order_status.lower().replace("_", " ")
+        status_map = {
+            "pending": "Pending",
+            "placed": "Placed",
+            "confirmed": "Confirmed",
+            "processing": "Processing",
+            "shipped": "Shipped",
+            "out for delivery": "Out for Delivery",
+            "delivered": "Delivered",
+            "cancelled": "Cancelled",
+            "returned": "Returned",
+        }
+        order_status = status_map.get(clean_os, "Placed")
         delivery = data.get("estimatedDelivery", "3-5 Business Days")
 
         order = Order.objects.create(
@@ -110,18 +123,23 @@ class OrderListCreateAPIView(APIView):
 
 class OrderDetailAPIView(APIView):
     """
-    GET /api/orders/<idOrNumber>/
-    Strictly verifies ownership: A customer can only access their own order.
+    GET   /api/orders/<idOrNumber>/ - Retrieve order details
+    PATCH /api/orders/<idOrNumber>/ - Update order status, payment status, delivery (Admin/Staff or owner cancellation)
+    PUT   /api/orders/<idOrNumber>/ - Alias to PATCH
     """
     permission_classes = [AllowAny]
 
-    def get(self, request, idOrNumber):
+    def _get_order(self, idOrNumber):
         target = str(idOrNumber).replace("ord-", "").strip()
         order = None
         if target.isdigit():
             order = Order.objects.filter(id=int(target)).first()
         if not order:
             order = Order.objects.filter(order_number__iexact=str(idOrNumber)).first()
+        return order
+
+    def get(self, request, idOrNumber):
+        order = self._get_order(idOrNumber)
 
         if not order:
             return Response({"detail": "Order not found."}, status=status.HTTP_404_NOT_FOUND)
@@ -156,3 +174,77 @@ class OrderDetailAPIView(APIView):
 
         serializer = OrderSerializer(order, context={"request": request})
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def patch(self, request, idOrNumber):
+        order = self._get_order(idOrNumber)
+        if not order:
+            return Response({"detail": "Order not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        is_staff = bool(request.user and request.user.is_authenticated and (request.user.is_staff or request.user.is_superuser))
+        is_owner = bool(request.user and request.user.is_authenticated and order.user == request.user)
+
+        if not (is_staff or is_owner):
+            return Response(
+                {"detail": "Authentication required to update this order."},
+                status=status.HTTP_401_UNAUTHORIZED if not (request.user and request.user.is_authenticated) else status.HTTP_403_FORBIDDEN
+            )
+
+        data = request.data
+        new_order_status = data.get("orderStatus") or data.get("order_status")
+        new_payment_status = data.get("paymentStatus") or data.get("payment_status")
+        estimated_delivery = data.get("estimatedDelivery") or data.get("estimated_delivery")
+
+        if new_order_status:
+            clean_s = str(new_order_status).strip().lower().replace("_", " ")
+            status_map = {
+                "pending": "Pending",
+                "placed": "Placed",
+                "confirmed": "Confirmed",
+                "processing": "Processing",
+                "shipped": "Shipped",
+                "out for delivery": "Out for Delivery",
+                "delivered": "Delivered",
+                "cancelled": "Cancelled",
+                "returned": "Returned",
+            }
+            if clean_s not in status_map:
+                return Response(
+                    {"detail": f"Invalid order status '{new_order_status}'. Allowed choices: {list(status_map.keys())}"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            if not is_staff:
+                if clean_s != "cancelled":
+                    return Response(
+                        {"detail": "Only staff members can update orders to statuses other than 'cancelled'."},
+                        status=status.HTTP_403_FORBIDDEN
+                    )
+                if order.order_status.lower() in ["shipped", "out for delivery", "delivered", "cancelled"]:
+                    return Response(
+                        {"detail": f"Cannot cancel an order that is already {order.order_status}."},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+            order.order_status = status_map[clean_s]
+
+        if new_payment_status and is_staff:
+            clean_p = str(new_payment_status).strip().lower()
+            payment_map = {
+                "pending": "Pending",
+                "paid": "Paid",
+                "failed": "Failed",
+                "refunded": "Refunded",
+                "partially refunded": "Partially Refunded",
+            }
+            if clean_p in payment_map:
+                order.payment_status = payment_map[clean_p]
+
+        if estimated_delivery and is_staff:
+            order.estimated_delivery = str(estimated_delivery).strip()
+
+        order.save()
+        serializer = OrderSerializer(order, context={"request": request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def put(self, request, idOrNumber):
+        return self.patch(request, idOrNumber)

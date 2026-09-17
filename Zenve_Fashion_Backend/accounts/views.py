@@ -8,7 +8,7 @@ from django.db.models import Q
 from rest_framework.permissions import AllowAny
 
 from django.contrib.auth.models import User
-from django.contrib.auth import authenticate
+from django.contrib.auth import authenticate, logout as django_logout
 from django.conf import settings
 from .twilio_service import (
     send_twilio_otp_sms,
@@ -569,7 +569,7 @@ class AuthRefreshTokenAPIView(APIView):
 # =========================================================
 
 class AuthLogoutAPIView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
     def post(self, request):
         # Blacklist the supplied refresh token when available.
@@ -578,8 +578,13 @@ class AuthLogoutAPIView(APIView):
         if refresh_token:
             try:
                 RefreshToken(refresh_token).blacklist()
-            except (TokenError, AttributeError):
+            except (TokenError, AttributeError, Exception):
                 pass
+
+        try:
+            django_logout(request)
+        except Exception:
+            pass
 
         return Response({"message": "Logout Successful"}, status=status.HTTP_200_OK)
 

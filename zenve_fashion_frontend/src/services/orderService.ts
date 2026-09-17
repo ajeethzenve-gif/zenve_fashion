@@ -82,6 +82,10 @@ export const orderService = {
     try {
       const response = await apiClient.get<Order[]>('/orders/');
       if (Array.isArray(response.data)) {
+        const storageKey = orderService.getUserStorageKey();
+        if (storageKey) {
+          localStorage.setItem(storageKey, JSON.stringify(response.data));
+        }
         return response.data;
       }
     } catch {
@@ -97,7 +101,22 @@ export const orderService = {
   async getOrderById(idOrNumber: string): Promise<Order | null> {
     try {
       const response = await apiClient.get<Order>(`/orders/${idOrNumber}/`);
-      return response.data || null;
+      if (response.data) {
+        const storageKey = orderService.getUserStorageKey();
+        if (storageKey) {
+          const orders = orderService.getLocalOrders();
+          const idx = orders.findIndex(
+            (o) =>
+              o.id === response.data.id ||
+              o.orderNumber.toLowerCase() === response.data.orderNumber.toLowerCase()
+          );
+          if (idx !== -1) {
+            orders[idx] = response.data;
+            localStorage.setItem(storageKey, JSON.stringify(orders));
+          }
+        }
+        return response.data;
+      }
     } catch {
       const orders = orderService.getLocalOrders();
       return (
@@ -106,6 +125,43 @@ export const orderService = {
         ) || null
       );
     }
+    return null;
+  },
+
+  /**
+   * Update order status on backend (Admin / Staff or cancellation)
+   */
+  async updateOrderStatus(
+    idOrNumber: string,
+    orderStatus: OrderStatus,
+    paymentStatus?: PaymentStatus
+  ): Promise<Order | null> {
+    try {
+      const response = await apiClient.patch<Order>(`/orders/${idOrNumber}/`, {
+        orderStatus,
+        ...(paymentStatus ? { paymentStatus } : {}),
+      });
+      if (response.data) {
+        const storageKey = orderService.getUserStorageKey();
+        if (storageKey) {
+          const orders = orderService.getLocalOrders();
+          const idx = orders.findIndex(
+            (o) =>
+              o.id === response.data.id ||
+              o.orderNumber.toLowerCase() === response.data.orderNumber.toLowerCase()
+          );
+          if (idx !== -1) {
+            orders[idx] = response.data;
+            localStorage.setItem(storageKey, JSON.stringify(orders));
+          }
+        }
+        return response.data;
+      }
+    } catch (err) {
+      console.error('Failed to update order status:', err);
+      throw err;
+    }
+    return null;
   },
 
   getLocalOrders(): Order[] {

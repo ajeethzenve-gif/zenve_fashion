@@ -18,6 +18,7 @@ class Order(models.Model):
 
     ORDER_STATUS_CHOICES = (
         ("Pending", "Pending"),
+        ("Placed", "Placed"),
         ("Confirmed", "Confirmed"),
         ("Processing", "Processing"),
         ("Shipped", "Shipped"),

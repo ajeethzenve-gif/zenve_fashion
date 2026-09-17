@@ -1,6 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Package, ArrowRight, Truck, CheckCircle, Clock, Scissors, Printer } from 'lucide-react';
+import {
+  Package,
+  ArrowRight,
+  Truck,
+  CheckCircle,
+  Clock,
+  Scissors,
+  Printer,
+  Navigation,
+  XCircle,
+  RotateCcw,
+} from 'lucide-react';
 import { orderService } from '../../services/orderService';
 import { Order, OrderStatus } from '../../types/order';
 import { formatINR } from '../../utils/formatters';
@@ -51,9 +62,12 @@ export const OrderList: React.FC = () => {
     );
   }
 
-  const getStatusBadge = (status: OrderStatus) => {
+  const getStatusBadge = (rawStatus: string) => {
+    const status = (rawStatus || '').toLowerCase().replace(/_/g, ' ').trim();
     switch (status) {
+      case 'pending':
       case 'placed':
+      case 'confirmed':
         return (
           <span className="inline-flex items-center space-x-1.5 px-3 py-1 bg-[#002418] border border-[#E4BD5A]/40 text-[#E4BD5A] text-[10px] font-semibold tracking-wider uppercase">
             <Clock className="w-3 h-3" />
@@ -75,6 +89,13 @@ export const OrderList: React.FC = () => {
             <span>DISPATCHED / IN TRANSIT</span>
           </span>
         );
+      case 'out for delivery':
+        return (
+          <span className="inline-flex items-center space-x-1.5 px-3 py-1 bg-[#002418] border border-[#E4BD5A] text-[#E4BD5A] text-[10px] font-bold tracking-wider uppercase shadow-[0_0_8px_rgba(228,189,90,0.3)]">
+            <Navigation className="w-3 h-3 text-[#E4BD5A]" />
+            <span>OUT FOR DELIVERY</span>
+          </span>
+        );
       case 'delivered':
         return (
           <span className="inline-flex items-center space-x-1.5 px-3 py-1 bg-emerald-950/80 border border-emerald-500/60 text-emerald-300 text-[10px] font-semibold tracking-wider uppercase">
@@ -82,10 +103,24 @@ export const OrderList: React.FC = () => {
             <span>HAND-DELIVERED</span>
           </span>
         );
+      case 'cancelled':
+        return (
+          <span className="inline-flex items-center space-x-1.5 px-3 py-1 bg-rose-950/80 border border-rose-500/60 text-rose-300 text-[10px] font-semibold tracking-wider uppercase">
+            <XCircle className="w-3 h-3 text-rose-400" />
+            <span>CANCELLED</span>
+          </span>
+        );
+      case 'returned':
+        return (
+          <span className="inline-flex items-center space-x-1.5 px-3 py-1 bg-amber-950/80 border border-amber-500/60 text-amber-300 text-[10px] font-semibold tracking-wider uppercase">
+            <RotateCcw className="w-3 h-3 text-amber-400" />
+            <span>RETURNED</span>
+          </span>
+        );
       default:
         return (
           <span className="px-3 py-1 bg-[#001710] border border-[#E4BD5A]/30 text-[#E4BD5A] text-[10px] uppercase font-semibold">
-            {status}
+            {rawStatus}
           </span>
         );
     }

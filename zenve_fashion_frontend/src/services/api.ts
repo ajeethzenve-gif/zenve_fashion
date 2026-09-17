@@ -39,7 +39,8 @@ apiClient.interceptors.response.use(
       const isAuthAttempt =
         url.includes('/auth/login') ||
         url.includes('/auth/register') ||
-        url.includes('/auth/send-otp');
+        url.includes('/auth/send-otp') ||
+        url.includes('/auth/logout');
 
       if (!isAuthAttempt && typeof window !== 'undefined') {
         localStorage.removeItem('zenve-auth-storage');
