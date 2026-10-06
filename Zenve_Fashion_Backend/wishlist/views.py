@@ -12,71 +12,24 @@ from .models import Wishlist
 from .serializers import WishlistSerializer
 
 
-<<<<<<< HEAD
 
 class WishlistAPIView(APIView):
-=======
-class WishlistSyncAPIView(APIView):
-    """
-    GET    /api/wishlist/      - Retrieve authenticated customer's wishlist items
-    POST   /api/wishlist/sync/ - Synchronizes client wishlist product IDs strictly under authenticated user
-    DELETE /api/wishlist/      - Clears customer's wishlist items in database
-    """
-    permission_classes = [AllowAny]
-
-    def get(self, request):
-        if not request.user or not request.user.is_authenticated:
-            return Response([], status=status.HTTP_200_OK)
-
-        items = WishlistItem.objects.filter(user=request.user)
-        product_ids = [item.product_id for item in items]
-        products = Product.objects.filter(id__in=product_ids)
-        serializer = ProductSerializer(products, many=True, context={"request": request})
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-    def delete(self, request):
-        if request.user and request.user.is_authenticated:
-            WishlistItem.objects.filter(user=request.user).delete()
-        return Response({"message": "Wishlist cleared successfully."}, status=status.HTTP_200_OK)
-
-    def post(self, request):
-        product_ids = request.data.get("productIds", [])
-        if not isinstance(product_ids, list):
-            return Response([], status=status.HTTP_200_OK)
->>>>>>> 1102f7b78adaff24eee42324a35edbe7ea9083e2
 
     permission_classes = [IsAuthenticated]
 
 
-<<<<<<< HEAD
     # GET USER WISHLIST
     def get(self, request):
 
         customer = get_object_or_404(
             Customer,
             user=request.user
-=======
-        from django.db.models import Q
-        products = Product.objects.filter(
-            Q(id__in=numeric_ids) | Q(sku__in=slug_ids)
->>>>>>> 1102f7b78adaff24eee42324a35edbe7ea9083e2
         )
 
 
-<<<<<<< HEAD
         wishlist = Wishlist.objects.filter(
             customer=customer
         )
-=======
-        # Maintain original order of requested IDs
-        prod_map = {}
-        for p in products:
-            prod_map[str(p.id)] = p
-            if getattr(p, "sku", None):
-                prod_map[str(p.sku)] = p
-            if getattr(p, "slug", None):
-                prod_map[str(p.slug)] = p
->>>>>>> 1102f7b78adaff24eee42324a35edbe7ea9083e2
 
 
         serializer = WishlistSerializer(

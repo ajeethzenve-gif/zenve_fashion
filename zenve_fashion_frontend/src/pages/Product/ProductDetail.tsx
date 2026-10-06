@@ -112,7 +112,7 @@ export const ProductDetail: React.FC = () => {
     ? Math.round((product.originalPrice * getSizePriceMultiplier(selectedSize)) / 100) * 100
     : currentPrice;
 
-  const handleAddToCart = () => {
+  const handleAddToCart = async () => {
     const colorToUse =
       selectedColor || (product.colors && product.colors[0]) || { name: 'Standard', hex: '#E4BD5A' };
     const sizeToUse = selectedSize || (product.sizes && product.sizes[0]) || 'M';
@@ -121,11 +121,11 @@ export const ProductDetail: React.FC = () => {
       price: currentPrice,
       originalPrice: currentOriginalPrice,
     };
-    addItemToCart(productWithSizePrice, sizeToUse, colorToUse, quantity);
+    if (!await addItemToCart(productWithSizePrice, sizeToUse, colorToUse, quantity)) return;
     openCartDrawer();
   };
 
-  const handleBuyNow = () => {
+  const handleBuyNow = async () => {
     const colorToUse =
       selectedColor || (product.colors && product.colors[0]) || { name: 'Standard', hex: '#E4BD5A' };
     const sizeToUse = selectedSize || (product.sizes && product.sizes[0]) || 'M';
@@ -134,7 +134,7 @@ export const ProductDetail: React.FC = () => {
       price: currentPrice,
       originalPrice: currentOriginalPrice,
     };
-    addItemToCart(productWithSizePrice, sizeToUse, colorToUse, quantity);
+    if (!await addItemToCart(productWithSizePrice, sizeToUse, colorToUse, quantity)) return;
     navigate('/checkout');
   };
 

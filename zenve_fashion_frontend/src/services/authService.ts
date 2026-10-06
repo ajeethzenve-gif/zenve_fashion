@@ -21,6 +21,11 @@ interface OtpResponse {
 }
 
 export const authService = {
+  async completeMobileRegistration(registrationToken: string, name: string): Promise<AuthResponse> {
+    const response = await apiClient.post<AuthResponse>('/auth/complete-mobile-registration', { registrationToken, name });
+    return response.data;
+  },
+
 
 
   async login(
@@ -154,8 +159,8 @@ export const authService = {
   async verifyMobileOtp(
     phone: string,
     otp: string
-  ): Promise<AuthResponse> {
-    const response = await apiClient.post<AuthResponse>(
+  ): Promise<AuthResponse | { requiresName: true; registrationToken: string }> {
+    const response = await apiClient.post<AuthResponse | { requiresName: true; registrationToken: string }>(
       '/auth/verify-mobile-otp',
       {
         phone: phone.trim(),
@@ -165,7 +170,7 @@ export const authService = {
 
     if (
       response.data &&
-      response.data.token
+      ('requiresName' in response.data || response.data.token)
     ) {
       return response.data;
     }

@@ -43,6 +43,8 @@ export const Login: React.FC<LoginProps> = ({
 
   const [otp, setOtp] = useState('');
   const [otpSent, setOtpSent] = useState(false);
+  const [registrationToken, setRegistrationToken] = useState('');
+  const [customerName, setCustomerName] = useState('');
 
   const [isSendingOtp, setIsSendingOtp] =
     useState(false);
@@ -208,6 +210,11 @@ export const Login: React.FC<LoginProps> = ({
           otp
         );
 
+      if ('requiresName' in res) {
+        setRegistrationToken(res.registrationToken);
+        setOtp('');
+        return;
+      }
       if (res && res.token) {
         useAuthStore.setState({
           user: res.user,
@@ -235,6 +242,19 @@ export const Login: React.FC<LoginProps> = ({
     }
   };
 
+
+  const handleSaveCustomerName = async () => {
+    if (!customerName.trim()) { setMobileError('Please enter your name.'); return; }
+    setIsVerifyingOtp(true);
+    setMobileError(null);
+    try {
+      const res = await authService.completeMobileRegistration(registrationToken, customerName.trim());
+      useAuthStore.setState({ user: res.user, token: res.token, isAuthenticated: true, isLoading: false });
+      navigate(from, { replace: true });
+    } catch (err: any) {
+      setMobileError(err.response?.data?.message || 'Unable to save your name. Please try again.');
+    } finally { setIsVerifyingOtp(false); }
+  };
 
   const handleResendMobileOtp = async () => {
     if (!phone.trim()) {
@@ -270,6 +290,8 @@ export const Login: React.FC<LoginProps> = ({
     clearError();
 
     setOtpSent(false);
+                        setRegistrationToken('');
+                        setCustomerName('');
     setOtp('');
 
     if (type === 'email') {
@@ -1128,6 +1150,8 @@ export const Login: React.FC<LoginProps> = ({
                         );
 
                         setOtpSent(false);
+                        setRegistrationToken('');
+                        setCustomerName('');
                         setOtp('');
                         clearError();
                       }}
@@ -1144,7 +1168,22 @@ export const Login: React.FC<LoginProps> = ({
                 </div>
 
 
-                {!otpSent && (
+                {registrationToken && (
+                  <div className="space-y-4">
+                    <p className="text-[#E4BD5A]">Mobile verified. Welcome to Zenve!</p>
+                    <label className="block text-[#B8B9A8]" htmlFor="customer-name">Your name</label>
+                    <input id="customer-name" autoComplete="name" autoFocus maxLength={150}
+                      value={customerName} onChange={(e) => setCustomerName(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSaveCustomerName(); } }}
+                      placeholder="Enter your full name"
+                      className="w-full bg-[#002B1D] border border-[#E4BD5A]/30 px-3 py-3 text-[#F5F0DF]" />
+                    <button type="button" onClick={handleSaveCustomerName} disabled={isVerifyingOtp || !customerName.trim()}
+                      className="w-full bg-[#E4BD5A] text-[#002B1D] py-3 disabled:opacity-50">
+                      {isVerifyingOtp ? 'SAVING...' : 'SAVE & CONTINUE'}
+                    </button>
+                  </div>
+                )}
+                {!otpSent && !registrationToken && (
 
                   <button
                     type="button"
@@ -1170,7 +1209,7 @@ export const Login: React.FC<LoginProps> = ({
                 )}
 
 
-                {otpSent && (
+                {otpSent && !registrationToken && (
 
                   <div className="space-y-4">
 

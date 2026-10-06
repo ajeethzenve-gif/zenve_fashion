@@ -23,12 +23,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, priority = fa
 
   const isFavorited = isInWishlist(product.id);
 
-  const handleQuickAdd = (e: React.MouseEvent) => {
+  const handleQuickAdd = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     const defaultColor = product.colors[0] || { name: 'Standard', hex: '#E4BD5A' };
     const defaultSize = product.sizes[0] || 'Standard';
-    addItemToCart(product, defaultSize, defaultColor, 1);
+    if (!await addItemToCart(product, defaultSize, defaultColor, 1)) return;
     openCartDrawer();
   };
 

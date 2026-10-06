@@ -2,6 +2,7 @@ from django.urls import path
 from .views import (
     RegisterAPIView,
     LoginAPIView,
+    CompleteMobileRegistrationAPIView,
     AuthMeAPIView,
     AuthLogoutAPIView,
     AuthRefreshTokenAPIView,
@@ -14,6 +15,8 @@ from .views import (
 )
 
 urlpatterns = [
+    path("complete-mobile-registration", CompleteMobileRegistrationAPIView.as_view()),
+    path("complete-mobile-registration/", CompleteMobileRegistrationAPIView.as_view()),
     path("register", RegisterAPIView.as_view(), name="auth-register-noslash"),
     path("register/", RegisterAPIView.as_view(), name="auth-register"),
     path("login", LoginAPIView.as_view(), name="auth-login-noslash"),

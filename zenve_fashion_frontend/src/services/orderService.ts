@@ -1,5 +1,5 @@
 import { apiClient } from './api';
-import { Order, CheckoutFormData } from '../types/order';
+import { Order, CheckoutFormData, OrderStatus, PaymentStatus } from '../types/order';
 import { CartItem } from '../types/cart';
 import { generateOrderNumber } from '../utils/formatters';
 import { useAuthStore } from '../store/authStore';

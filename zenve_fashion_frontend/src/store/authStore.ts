@@ -34,10 +34,10 @@ const extractErrorMessage = (err: unknown, defaultMessage: string): string => {
 
 const purgeAllCustomerSessionData = () => {
   try {
-    useCartStore.getState().clearCart();
+    useCartStore.setState({items: [], error: null, promoCode: null, promoDiscountPercent: 0});
   } catch {}
   try {
-    useWishlistStore.getState().clearWishlist();
+    useWishlistStore.setState({items: [], error: null});
   } catch {}
 
   try {

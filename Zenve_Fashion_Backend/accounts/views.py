@@ -10,12 +10,7 @@ from rest_framework.permissions import AllowAny
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate, logout as django_logout
 from django.conf import settings
-from .twilio_service import (
-    send_twilio_otp_sms,
-    send_twilio_welcome_sms,
-    send_twilio_registration_otp_sms,
-    format_e164_phone,
-)
+from .sms_service import send_otp_sms, format_e164_phone
 
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -177,10 +172,6 @@ class RegisterAPIView(APIView):
                     country="India",
                 )
 
-                # Send official welcome SMS to the new customer via Twilio
-                if phone:
-                    customer_display_name = user.first_name or name or "Valued Client"
-                    send_twilio_welcome_sms(phone, customer_display_name)
             except Role.DoesNotExist:
                 return Response(
                     {"message": "Customer role is not configured. Create a Customer role first."},
@@ -241,11 +232,6 @@ class RegisterAPIView(APIView):
                     postal_code=serializer.validated_data.get("postal_code")
                 )
 
-                # Send official welcome SMS to the new customer via Twilio
-                client_phone = serializer.validated_data.get("phone_number")
-                if client_phone:
-                    client_name = user.first_name or user.username or "Valued Client"
-                    send_twilio_welcome_sms(client_phone, client_name)
             except Role.DoesNotExist:
                 return Response(
                     {"message": "Customer role is not configured. Create a Customer role first."},
@@ -299,22 +285,14 @@ class LoginAPIView(APIView):
             if customer and customer.user:
                 user = customer.user
             else:
-                # Auto-create client user & customer record for seamless mobile login
-                clean_digits = re.sub(r"\D", "", phone)[-10:]
-                username = f"client_{clean_digits}"
-                existing_user = User.objects.filter(username=username).first()
-                if existing_user:
-                    user = existing_user
-                else:
-                    user = User.objects.create_user(
-                        username=username,
-                        email=f"{clean_digits}@zenvefashion.com",
-                        first_name="Zenve Client",
-                    )
-                customer, _ = Customer.objects.get_or_create(
-                    user=user,
-                    defaults={"phone_number": formatted_phone or phone}
-                )
+                registration_token = secrets.token_urlsafe(32)
+                cache.set(f"mobile_registration_{registration_token}", formatted_phone, timeout=600)
+                cache.delete(f"login_otp_{phone}")
+                cache.delete(f"login_otp_{formatted_phone}")
+                return Response({
+                    "requiresName": True, "registrationToken": registration_token,
+                    "message": "Mobile verified. Please enter your name.",
+                })
 
             cache.delete(f"login_otp_{phone}")
             if formatted_phone:
@@ -367,6 +345,45 @@ class LoginAPIView(APIView):
             },
             status=status.HTTP_200_OK
         )
+
+
+class CompleteMobileRegistrationAPIView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        token = str(request.data.get("registrationToken", "")).strip()
+        name = " ".join(str(request.data.get("name", "")).split())
+        if not name or len(name) > 150:
+            return Response({"message": "Enter your name (up to 150 characters)."}, status=400)
+        key = f"mobile_registration_{token}"
+        if not token or not cache.add(f"{key}_lock", True, timeout=30):
+            return Response({"message": "Please verify your mobile number again."}, status=400)
+        try:
+            phone = cache.get(key)
+            if not phone:
+                return Response({"message": "Verification expired. Please request a new OTP."}, status=401)
+            with transaction.atomic():
+                customer = Customer.objects.select_related("user").filter(
+                    phone_number__in=[phone, phone.lstrip("+"), phone[-10:]]
+                ).first()
+                if customer:
+                    return Response({"message": "Account already exists. Please log in again."}, status=409)
+                parts = name.split(" ", 1)
+                user = User.objects.create_user(
+                    username=f"client_{phone[-10:]}_{secrets.token_hex(6)}",
+                    first_name=parts[0], last_name=parts[1] if len(parts) > 1 else "",
+                    password=None,
+                )
+                Customer.objects.create(user=user, phone_number=phone)
+                role, _ = Role.objects.get_or_create(name="Customer")
+                UserRole.objects.create(user=user, role=role)
+                refresh = RefreshToken.for_user(user)
+            cache.delete(key)
+            return Response({"user": _get_auth_user_data(user, request),
+                             "token": str(refresh.access_token), "refreshToken": str(refresh)}, status=201)
+        finally:
+            cache.delete(f"{key}_lock")
 
 
 # =========================================================
@@ -450,8 +467,13 @@ class SendOTPAPIView(APIView):
                     timeout=300
                 )
 
-            # Dispatch real mobile SMS via Twilio
-            sms_result = send_twilio_otp_sms(phone, otp)
+            # Deliver the OTP via APITxT
+            sms_result = send_otp_sms(phone, otp)
+            if not sms_result.get("success"):
+                cache.delete(f"login_otp_{phone}")
+                cache.delete(f"login_otp_{formatted_phone}")
+                return Response({"success": False, "message": sms_result["message"]}, status=503)
+
 
             # If customer has email on file, also send email copy
             if customer and customer.user and customer.user.email:
@@ -476,14 +498,8 @@ class SendOTPAPIView(APIView):
                 "phone": phone,
                 "formatted_phone": formatted_phone,
                 "message": f"Verification OTP sent to {formatted_phone} via SMS." if sms_result.get("success") else "OTP generated successfully.",
-                "twilio_status": "sent" if sms_result.get("success") else sms_result.get("message", "pending"),
+                "sms_status": "sent" if sms_result.get("success") else sms_result.get("message", "pending"),
             }
-
-            # If Twilio credentials are not configured yet, include OTP so development/testing is not blocked
-            if not sms_result.get("configured") or getattr(settings, "DEBUG", False):
-                response_data["otp"] = otp
-                if not sms_result.get("configured"):
-                    response_data["dev_note"] = "Twilio credentials pending in .env. Enter TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN to deliver live SMS."
 
             return Response(response_data, status=status.HTTP_200_OK)
 
@@ -514,17 +530,19 @@ class SendRegistrationOTPAPIView(APIView):
         if formatted_phone != phone:
             cache.set(f"reg_otp_{formatted_phone}", otp, timeout=300)
 
-        sms_result = send_twilio_registration_otp_sms(phone, otp)
+        sms_result = send_otp_sms(phone, otp)
+        if not sms_result.get("success"):
+            cache.delete(f"reg_otp_{phone}")
+            cache.delete(f"reg_otp_{formatted_phone}")
+            return Response({"success": False, "message": sms_result["message"]}, status=503)
 
         res_data = {
             "success": True,
             "phone": phone,
             "formatted_phone": formatted_phone,
             "message": f"Verification code sent to {formatted_phone} via SMS." if sms_result.get("success") else "OTP generated successfully.",
-            "twilio_status": "sent" if sms_result.get("success") else sms_result.get("message", "pending"),
+            "sms_status": "sent" if sms_result.get("success") else sms_result.get("message", "pending"),
         }
-        if not sms_result.get("configured") or getattr(settings, "DEBUG", False):
-            res_data["otp"] = otp
 
         return Response(res_data, status=status.HTTP_200_OK)
 

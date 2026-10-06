@@ -1,3 +1,4 @@
+from .saved_views import SavedWishlistAPIView
 from django.urls import path
 
 from .views import (
@@ -8,7 +9,8 @@ from .views import (
 
 
 urlpatterns = [
-<<<<<<< HEAD
+    path("", SavedWishlistAPIView.as_view()),
+    path("sync/", SavedWishlistAPIView.as_view()),
 
     path(
         "",
@@ -30,9 +32,4 @@ urlpatterns = [
         name="remove-wishlist"
     ),
 
-=======
-    path("", WishlistSyncAPIView.as_view(), name="wishlist-root"),
-    path("sync", WishlistSyncAPIView.as_view(), name="wishlist-sync-noslash"),
-    path("sync/", WishlistSyncAPIView.as_view(), name="wishlist-sync"),
->>>>>>> 1102f7b78adaff24eee42324a35edbe7ea9083e2
 ]

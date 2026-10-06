@@ -8,6 +8,7 @@ class Cart(models.Model):
 
     customer = models.OneToOneField(
         Customer,
+        null=True, blank=True,
         on_delete=models.CASCADE,
         related_name="cart"
     )
@@ -26,14 +27,16 @@ class Cart(models.Model):
 
 class CartItem(models.Model):
 
-    cart = models.ForeignKey(
-        Cart,
-        on_delete=models.CASCADE,
-        related_name="items"
-    )
+    user = models.ForeignKey("auth.User", null=True, on_delete=models.CASCADE)
+    product_name = models.CharField(max_length=255, default="")
+    product_image = models.URLField(blank=True, default="")
+    price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     product = models.ForeignKey(
         Product,
+        null=True, blank=True,
         on_delete=models.CASCADE
     )
 
@@ -41,8 +44,12 @@ class CartItem(models.Model):
         default=1
     )
 
+    size = models.CharField(max_length=50, default="Standard")
+    color = models.CharField(max_length=100, default="Standard")
+    color_hex = models.CharField(max_length=20, default="#E4BD5A")
+
     class Meta:
-        unique_together = ("cart", "product")
+        unique_together = ("user", "product", "size", "color")
 
     @property
     def subtotal(self):

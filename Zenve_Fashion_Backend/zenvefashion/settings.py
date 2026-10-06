@@ -379,12 +379,12 @@ RAZORPAY_KEY_ID = os.getenv("RAZORPAY_KEY_ID")
 RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET")
 
 # =====================================================
-# TWILIO SMS CONFIGURATION
+# APITxT SMS CONFIGURATION
 # =====================================================
-TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID", "").strip()
-TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN", "").strip()
-TWILIO_PHONE_NUMBER = os.getenv("TWILIO_PHONE_NUMBER", "").strip()
-TWILIO_MESSAGING_SERVICE_SID = os.getenv("TWILIO_MESSAGING_SERVICE_SID", "").strip()
+SMS_PROVIDER = os.getenv("SMS_PROVIDER", "APITXT")
+SMS_API_KEY = os.getenv("SMS_API_KEY", "").strip()
+SMS_AUTH_KEY = os.getenv("SMS_AUTH_KEY", "").strip()
+SMS_API_URL = os.getenv("SMS_API_URL", "https://apitxt.com/api/sendOTP").strip()
 # =====================================================
 # LOGIN / LOGOUT
 # =====================================================
