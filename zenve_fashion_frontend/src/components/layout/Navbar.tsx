@@ -143,9 +143,11 @@ export const Navbar: React.FC = () => {
             className="relative p-2 text-[#F7F4EB]/85 hover:text-[#E4BD5A] hover:bg-[#E4BD5A]/10 rounded-full transition-all duration-300 cursor-pointer focus:outline-none group"
           >
             <ShoppingBag className="w-5 h-5 stroke-[1.75] transition-transform duration-300 group-hover:scale-105" />
-            <span className="absolute -top-0.5 -right-0.5 bg-[#D5BA64] text-[#132516] text-[10px] font-bold w-4.5 h-4.5 rounded-full flex items-center justify-center shadow-[0_0_10px_rgba(213,186,100,0.7)] border border-[#132516]">
-              {itemCount > 0 ? itemCount : 3}
-            </span>
+            {itemCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 bg-[#D5BA64] text-[#132516] text-[10px] font-bold w-4.5 h-4.5 rounded-full flex items-center justify-center shadow-[0_0_10px_rgba(213,186,100,0.7)] border border-[#132516]">
+                {itemCount}
+              </span>
+            )}
           </button>
         </div>
       </div>

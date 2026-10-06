@@ -19,6 +19,7 @@ import { useCartStore } from '../../store/cartStore';
 import { useAuthStore } from '../../store/authStore';
 import { orderService } from '../../services/orderService';
 import { paymentService } from '../../services/paymentService';
+import { addressService } from '../../services/addressService';
 import { formatINR } from '../../utils/formatters';
 
 interface FormData {
@@ -60,26 +61,33 @@ export const Checkout: React.FC = () => {
 
   const user = useAuthStore((state) => state.user);
 
-  // Safely load saved addresses from Profile or User object
-  const savedAddresses = useMemo(() => {
-    const list: any[] = [];
-    if (user?.addresses && Array.isArray(user.addresses)) {
-      list.push(...user.addresses);
-    }
-    try {
-      const saved = localStorage.getItem('zenve_user_addresses');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          parsed.forEach((p) => {
-            if (!list.some((existing) => existing.id === p.id || existing.addressLine1 === p.addressLine1)) {
-              list.push(p);
-            }
-          });
+  // Load saved addresses strictly for the authenticated customer
+  const [savedAddresses, setSavedAddresses] = useState<any[]>(() => {
+    return user?.addresses && Array.isArray(user.addresses) ? user.addresses : [];
+  });
+
+  useEffect(() => {
+    let mounted = true;
+    async function loadAddresses() {
+      if (!user) {
+        if (mounted) setSavedAddresses([]);
+        return;
+      }
+      const backendAddrs = await addressService.getAddresses();
+      if (mounted) {
+        if (backendAddrs.length > 0) {
+          setSavedAddresses(backendAddrs);
+        } else if (user?.addresses && user.addresses.length > 0) {
+          setSavedAddresses(user.addresses);
+        } else {
+          setSavedAddresses([]);
         }
       }
-    } catch {}
-    return list;
+    }
+    loadAddresses();
+    return () => {
+      mounted = false;
+    };
   }, [user]);
 
   const defaultAddress = savedAddresses.find((a) => a && a.isDefault) || savedAddresses[0] || null;
@@ -103,8 +111,8 @@ export const Checkout: React.FC = () => {
         : '',
       addressLine1: initialAddr?.addressLine1 || '',
       addressLine2: initialAddr?.addressLine2 || '',
-      city: initialAddr?.city || 'Bengaluru',
-      state: initialAddr?.state || 'Karnataka',
+      city: initialAddr?.city || '',
+      state: initialAddr?.state || '',
       pincode: initialAddr?.pincode || '',
       country: initialAddr?.country || 'India',
       paymentMethod: 'cod',

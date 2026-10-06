@@ -3,11 +3,34 @@ import { CartItem } from '../types/cart';
 
 export const cartService = {
   /**
+   * Fetch authenticated customer's cart from backend
+   */
+  async getCart(): Promise<CartItem[]> {
+    try {
+      const response = await apiClient.get<CartItem[]>('/cart/');
+      return Array.isArray(response.data) ? response.data : [];
+    } catch {
+      return [];
+    }
+  },
+
+  /**
+   * Clear customer's cart on backend
+   */
+  async clearCart(): Promise<void> {
+    try {
+      await apiClient.delete('/cart/');
+    } catch {
+      // ignore
+    }
+  },
+
+  /**
    * Sync cart with backend for logged-in users
    */
   async syncCart(items: CartItem[]): Promise<CartItem[]> {
     try {
-      const response = await apiClient.post<CartItem[]>('/cart/sync', { items });
+      const response = await apiClient.post<CartItem[]>('/cart/sync/', { items });
       return response.data;
     } catch {
       return items;

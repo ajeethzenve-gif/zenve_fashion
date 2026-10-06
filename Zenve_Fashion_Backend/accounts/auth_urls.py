@@ -6,8 +6,11 @@ from .views import (
     AuthLogoutAPIView,
     AuthRefreshTokenAPIView,
     SendOTPAPIView,
+    SendRegistrationOTPAPIView,
     ResetPasswordAPIView,
     GoogleLoginAPIView,
+    CustomerAddressListCreateAPIView,
+    CustomerAddressDetailAPIView,
 )
 
 urlpatterns = [
@@ -23,8 +26,18 @@ urlpatterns = [
     path("refresh-token/", AuthRefreshTokenAPIView.as_view(), name="auth-refresh-token"),
     path("send-otp", SendOTPAPIView.as_view(), name="auth-send-otp-noslash"),
     path("send-otp/", SendOTPAPIView.as_view(), name="auth-send-otp"),
+    path("send-mobile-otp", SendOTPAPIView.as_view(), name="auth-send-mobile-otp-noslash"),
+    path("send-mobile-otp/", SendOTPAPIView.as_view(), name="auth-send-mobile-otp"),
+    path("send-registration-otp", SendRegistrationOTPAPIView.as_view(), name="auth-send-reg-otp-noslash"),
+    path("send-registration-otp/", SendRegistrationOTPAPIView.as_view(), name="auth-send-reg-otp"),
+    path("verify-mobile-otp", LoginAPIView.as_view(), name="auth-verify-mobile-otp-noslash"),
+    path("verify-mobile-otp/", LoginAPIView.as_view(), name="auth-verify-mobile-otp"),
     path("reset-password", ResetPasswordAPIView.as_view(), name="auth-reset-password-noslash"),
     path("reset-password/", ResetPasswordAPIView.as_view(), name="auth-reset-password"),
     path("google", GoogleLoginAPIView.as_view(), name="auth-google-noslash"),
     path("google/", GoogleLoginAPIView.as_view(), name="auth-google"),
+    path("addresses", CustomerAddressListCreateAPIView.as_view(), name="auth-address-list-noslash"),
+    path("addresses/", CustomerAddressListCreateAPIView.as_view(), name="auth-address-list"),
+    path("addresses/<int:pk>", CustomerAddressDetailAPIView.as_view(), name="auth-address-detail-noslash"),
+    path("addresses/<int:pk>/", CustomerAddressDetailAPIView.as_view(), name="auth-address-detail"),
 ]

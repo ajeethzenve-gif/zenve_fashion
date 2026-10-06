@@ -4,10 +4,12 @@ import { CartItem } from '../types/cart';
 import { generateOrderNumber } from '../utils/formatters';
 import { useAuthStore } from '../store/authStore';
 
-// Store placed orders in localStorage for instant retrieval across sessions if offline
-const STORAGE_KEY = 'zenve_orders';
-
 export const orderService = {
+  getUserStorageKey(): string | null {
+    const currentUser = useAuthStore.getState().user;
+    return currentUser?.id ? `zenve_orders_${currentUser.id}` : null;
+  },
+
   /**
    * Create and place a new order in database
    */
@@ -50,34 +52,44 @@ export const orderService = {
     };
 
     try {
-      const response = await apiClient.post<Order>('/orders', newOrder);
+      const response = await apiClient.post<Order>('/orders/', newOrder);
       if (response && response.data && response.data.id) {
         return response.data;
       }
-      const existing = orderService.getLocalOrders();
-      existing.unshift(newOrder);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(existing));
+      const storageKey = orderService.getUserStorageKey();
+      if (storageKey) {
+        const existing = orderService.getLocalOrders();
+        existing.unshift(newOrder);
+        localStorage.setItem(storageKey, JSON.stringify(existing));
+      }
       return newOrder;
     } catch {
-      // Local fallback for client session
-      const existing = orderService.getLocalOrders();
-      existing.unshift(newOrder);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(existing));
+      // Local fallback scoped strictly to this specific customer
+      const storageKey = orderService.getUserStorageKey();
+      if (storageKey) {
+        const existing = orderService.getLocalOrders();
+        existing.unshift(newOrder);
+        localStorage.setItem(storageKey, JSON.stringify(existing));
+      }
       return newOrder;
     }
   },
 
   /**
-   * Get all orders for current user from database or local storage
+   * Get all orders for current user from database or user-scoped local storage
    */
   async getUserOrders(): Promise<Order[]> {
     try {
-      const response = await apiClient.get<Order[]>('/orders');
+      const response = await apiClient.get<Order[]>('/orders/');
       if (Array.isArray(response.data)) {
+        const storageKey = orderService.getUserStorageKey();
+        if (storageKey) {
+          localStorage.setItem(storageKey, JSON.stringify(response.data));
+        }
         return response.data;
       }
     } catch {
-      // Offline fallback to locally stored placed orders
+      // Offline fallback to customer's own scoped orders
     }
 
     return orderService.getLocalOrders();
@@ -88,8 +100,23 @@ export const orderService = {
    */
   async getOrderById(idOrNumber: string): Promise<Order | null> {
     try {
-      const response = await apiClient.get<Order>(`/orders/${idOrNumber}`);
-      return response.data || null;
+      const response = await apiClient.get<Order>(`/orders/${idOrNumber}/`);
+      if (response.data) {
+        const storageKey = orderService.getUserStorageKey();
+        if (storageKey) {
+          const orders = orderService.getLocalOrders();
+          const idx = orders.findIndex(
+            (o) =>
+              o.id === response.data.id ||
+              o.orderNumber.toLowerCase() === response.data.orderNumber.toLowerCase()
+          );
+          if (idx !== -1) {
+            orders[idx] = response.data;
+            localStorage.setItem(storageKey, JSON.stringify(orders));
+          }
+        }
+        return response.data;
+      }
     } catch {
       const orders = orderService.getLocalOrders();
       return (
@@ -98,15 +125,55 @@ export const orderService = {
         ) || null
       );
     }
+    return null;
+  },
+
+  /**
+   * Update order status on backend (Admin / Staff or cancellation)
+   */
+  async updateOrderStatus(
+    idOrNumber: string,
+    orderStatus: OrderStatus,
+    paymentStatus?: PaymentStatus
+  ): Promise<Order | null> {
+    try {
+      const response = await apiClient.patch<Order>(`/orders/${idOrNumber}/`, {
+        orderStatus,
+        ...(paymentStatus ? { paymentStatus } : {}),
+      });
+      if (response.data) {
+        const storageKey = orderService.getUserStorageKey();
+        if (storageKey) {
+          const orders = orderService.getLocalOrders();
+          const idx = orders.findIndex(
+            (o) =>
+              o.id === response.data.id ||
+              o.orderNumber.toLowerCase() === response.data.orderNumber.toLowerCase()
+          );
+          if (idx !== -1) {
+            orders[idx] = response.data;
+            localStorage.setItem(storageKey, JSON.stringify(orders));
+          }
+        }
+        return response.data;
+      }
+    } catch (err) {
+      console.error('Failed to update order status:', err);
+      throw err;
+    }
+    return null;
   },
 
   getLocalOrders(): Order[] {
     try {
-      const data = localStorage.getItem(STORAGE_KEY);
+      const storageKey = orderService.getUserStorageKey();
+      if (!storageKey) return [];
+      const data = localStorage.getItem(storageKey);
       if (data) {
         const parsed: Order[] = JSON.parse(data);
         if (Array.isArray(parsed)) {
-          return parsed;
+          const currentUser = useAuthStore.getState().user;
+          return parsed.filter((o) => o.userId === currentUser?.id);
         }
       }
     } catch {

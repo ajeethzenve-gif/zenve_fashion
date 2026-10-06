@@ -32,3 +32,20 @@ class ShowroomAppointmentSerializer(serializers.ModelSerializer):
 
     def get_id(self, obj):
         return str(obj.id)
+
+    def to_internal_value(self, data):
+        d = data.copy() if hasattr(data, "copy") else dict(data)
+        if "mobile" in d and "phone" not in d:
+            d["phone"] = d["mobile"]
+        if "date" in d and "preferredDate" not in d:
+            d["preferredDate"] = d["date"]
+        if "timeSlot" in d and "preferredTime" not in d:
+            d["preferredTime"] = d["timeSlot"]
+        if "guests" in d and "guestCount" not in d:
+            d["guestCount"] = d["guests"]
+        if "experience" in d and "serviceInterest" not in d:
+            d["serviceInterest"] = d["experience"]
+        if "notes" in d and "message" not in d:
+            d["message"] = d["notes"]
+        return super().to_internal_value(d)
+

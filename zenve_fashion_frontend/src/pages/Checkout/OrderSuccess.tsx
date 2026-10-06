@@ -1,12 +1,14 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useLocation, Link } from 'react-router-dom';
-import { CheckCircle, Package, Home, ArrowRight, Truck } from 'lucide-react';
+import { CheckCircle, Package, Home, Truck, Printer } from 'lucide-react';
 import { Order } from '../../types/order';
 import { formatINR } from '../../utils/formatters';
+import { OrderInvoiceModal } from '../../components/orders/OrderInvoiceModal';
 
 export const OrderSuccess: React.FC = () => {
   const location = useLocation();
   const order = (location.state as { order?: Order })?.order;
+  const [isInvoiceOpen, setIsInvoiceOpen] = useState(false);
 
   if (!order) {
     return (
@@ -84,8 +86,16 @@ export const OrderSuccess: React.FC = () => {
             className="w-full sm:w-auto btn-gold py-3 px-6 text-xs tracking-widest flex items-center justify-center space-x-2 cursor-pointer shadow-luxury-gold"
           >
             <Truck className="w-4 h-4" />
-            <span>TRACK ATELIER SHIPMENT</span>
+            <span>TRACK SHIPMENT</span>
           </Link>
+
+          <button
+            onClick={() => setIsInvoiceOpen(true)}
+            className="w-full sm:w-auto bg-[#002418] border border-[#E4BD5A]/60 text-[#E4BD5A] hover:bg-[#E4BD5A] hover:text-[#00140D] transition-all duration-300 py-3 px-6 text-xs tracking-widest flex items-center justify-center space-x-2 cursor-pointer"
+          >
+            <Printer className="w-4 h-4" />
+            <span>VIEW TAX INVOICE</span>
+          </button>
 
           <Link
             to="/shop"
@@ -95,6 +105,13 @@ export const OrderSuccess: React.FC = () => {
             <span>CONTINUE SHOPPING</span>
           </Link>
         </div>
+
+        {/* Tax Invoice Modal */}
+        <OrderInvoiceModal
+          order={order}
+          isOpen={isInvoiceOpen}
+          onClose={() => setIsInvoiceOpen(false)}
+        />
       </div>
     </div>
   );

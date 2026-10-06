@@ -11,8 +11,10 @@ export interface User {
 export interface Address {
   id: string;
   fullName: string;
+  name?: string;
   mobile: string;
-  email: string;
+  phone?: string;
+  email?: string;
   addressLine1: string;
   addressLine2?: string;
   city: string;
