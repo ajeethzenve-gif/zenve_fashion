@@ -26,6 +26,7 @@ const JournalDetail = lazy(() => import('../pages/Journal/JournalDetail').then((
 const About = lazy(() => import('../pages/About/About').then((m) => ({ default: m.About })));
 const Contact = lazy(() => import('../pages/Contact/Contact').then((m) => ({ default: m.Contact })));
 const PolicyPage = lazy(() => import('../pages/Policy/PolicyPage').then((m) => ({ default: m.PolicyPage })));
+const SizeGuidePage = lazy(() => import('../pages/Policy/SizeGuidePage').then((m) => ({ default: m.SizeGuidePage })));
 const NotFound = lazy(() => import('../pages/NotFound/NotFound').then((m) => ({ default: m.NotFound })));
 
 // Loading Fallback
@@ -105,7 +106,8 @@ export const AppRoutes: React.FC = () => {
           <Route path="/privacy" element={<PolicyPage />} />
           <Route path="/terms" element={<PolicyPage />} />
           <Route path="/shipping" element={<PolicyPage />} />
-          <Route path="/refund" element={<PolicyPage />} />
+                    <Route path="/refund" element={<PolicyPage />} />
+          <Route path="/size-guide" element={<SizeGuidePage />} />
 
           {/* 404 Catch-All */}
           <Route path="*" element={<NotFound />} />

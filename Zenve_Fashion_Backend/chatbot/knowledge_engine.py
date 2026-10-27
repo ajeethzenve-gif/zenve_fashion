@@ -564,28 +564,28 @@ def _colour_reply(ent: dict) -> str:
     colours = ent.get("colours", [])
     if colours:
         c = colours[0]
-        return f"Shades of {c} look stunning paired with gold, ivory, or pearl accents.\nExplore {c} outfits here: /shop"
-    return "Warm tones glow in mustard and rust, while cool tones shine in emerald and sapphire.\nFilter products by colour: /shop"
+        return f"Shades of {c} look stunning paired with gold, ivory, or pearl accents.\nExplore curated looks in our showroom: /showroom"
+    return "Warm tones glow in mustard and rust, while cool tones shine in emerald and sapphire.\nExplore curated color edits: /showroom"
 
 
 def _fabric_reply(ent: dict, care_focus: bool = False) -> str:
     fabrics = ent.get("fabrics", [])
     if fabrics:
         f = fabrics[0]
-        return f"Our {f} garments are handcrafted for breathability and luxury drape.\nExplore {f} designs: /shop"
+        return f"Our {f} garments are handcrafted for breathability and luxury drape.\nExplore our collections: /shop"
     return "We handcraft our couture in pure silk, breathable cotton, and chanderi.\nBrowse by fabric here: /shop"
 
 
 def _occasion_reply(ent: dict) -> str:
     occ = ent.get("occasions", [])
     if occ:
-        o = occ[0]
-        return f"For {o}, we recommend our regal silk ensembles and statement motifs.\nExplore occasion outfits: /shop"
-    return "From royal weddings to festive parties, discover our designer wear.\nBrowse occasion couture: /shop"
+        o = occ[0].capitalize()
+        return f"For {o}, explore our regal silk ensembles and statement motifs.\nBrowse {o} styles: /shop?occasion={o}"
+    return "Discover couture edits for weddings, festive galas, and evening soirées.\nExplore our occasion showroom: /showroom"
 
 
 def _size_reply(ent: dict) -> str:
-    return "We offer sizes XS through XXL for humans and XS to XXL for pets.\nView our full sizing chart on: /shop"
+    return "Comprehensive measurement charts for human couture and companion pets.\nView our complete sizing guide: /size-guide"
 
 
 def _shop_reply(ent: dict, tokens: set[str]) -> str:
@@ -646,55 +646,55 @@ TRAINED_FAQS = [
         "id": "B7",
         "patterns": [r"recommend a stylish outfit for a wedding", r"wedding (outfit|wear|dress|clothes|lehenga)", r"what to wear to a wedding", r"wedding guest outfit"],
         "keywords": ["outfit for a wedding", "wedding outfit", "wedding wear", "wedding clothes"],
-        "answer": "Opulent silk lehengas and royal sherwanis in emerald, maroon, and gold.\nExplore wedding couture: /shop",
+        "answer": "Opulent silk lehengas and royal sherwanis in emerald, maroon, and gold.\nExplore wedding couture: /shop?occasion=Wedding",
     },
     {
         "id": "B8",
         "patterns": [r"what should i wear for an evening party", r"evening party (outfit|wear|dress)", r"party wear outfit", r"party wear"],
         "keywords": ["evening party", "party wear", "party outfit", "wear for an evening party"],
-        "answer": "Shimmering georgette sarees, velvet evening gowns, and sleek blazers.\nDiscover evening party styles: /shop",
+        "answer": "Shimmering georgette sarees, velvet evening gowns, and sleek blazers.\nDiscover party styles: /shop?occasion=Party",
     },
     {
         "id": "B9",
         "patterns": [r"outfits would you recommend for everyday use", r"everyday (use|wear|outfits|clothing)", r"casual (wear|outfits|clothes)", r"daily wear"],
         "keywords": ["everyday use", "everyday wear", "casual wear", "daily wear"],
-        "answer": "Breathable pure cotton kurtas, soft linen shirts, and relaxed co-ords.\nBrowse everyday wear: /shop",
+        "answer": "Breathable pure cotton kurtas, soft linen shirts, and relaxed co-ords.\nBrowse everyday wear: /shop?occasion=Everyday",
     },
     {
         "id": "B10",
         "patterns": [r"festive clothing suitable for indian celebrations", r"festive (clothing|wear|outfits)", r"indian celebrations", r"diwali|eid|puja outfits"],
         "keywords": ["festive clothing", "indian celebrations", "festive wear", "festive outfits"],
-        "answer": "Hand-embroidered chanderi kurtas, brocade lehengas, and silk kurtas.\nShop festive collections: /shop",
+        "answer": "Hand-embroidered chanderi kurtas, brocade lehengas, and silk kurtas.\nShop festive collection: /shop?occasion=Festive",
     },
     {
         "id": "B11",
         "patterns": [r"clothing options are suitable for workwear", r"workwear (options|clothing|outfits)", r"office wear", r"formal (wear|clothing)"],
         "keywords": ["suitable for workwear", "workwear", "office wear", "formal wear"],
-        "answer": "Crisp linen shirts, tailored cotton kurtis, and minimalist trousers.\nExplore elegant workwear: /shop",
+        "answer": "Crisp linen shirts, tailored cotton kurtis, and minimalist trousers.\nExplore workwear: /shop?occasion=Workwear",
     },
     {
         "id": "B12",
         "patterns": [r"recommend outfits for a holiday or resort vacation", r"holiday or resort (vacation|outfits)", r"resort wear", r"vacation (outfits|clothes)"],
         "keywords": ["holiday or resort vacation", "resort wear", "vacation outfits", "holiday outfits"],
-        "answer": "Breezy printed resort shirts, airy cotton dresses, and flowy kaftans.\nExplore vacation styles: /shop",
+        "answer": "Breezy printed resort shirts, airy cotton dresses, and flowy kaftans.\nExplore vacation styles: /shop?occasion=Resort",
     },
     {
         "id": "B13",
         "patterns": [r"clothing suitable for winter or monsoon weather", r"winter or monsoon (weather|clothing)", r"winter (wear|clothes)", r"monsoon (wear|clothes)"],
         "keywords": ["winter or monsoon weather", "winter clothing", "monsoon clothing"],
-        "answer": "Plush velvet bandhgalas for winter and quick-dry cottons for monsoon.\nShop seasonal weather wear: /shop",
+        "answer": "Plush velvet bandhgalas for winter and quick-dry cottons for monsoon.\nShop winter styles: /shop?occasion=Winter",
     },
     {
         "id": "B14",
         "patterns": [r"what accessories are available for pets", r"pet accessories", r"accessories for pets", r"accessories for (my )?(dog|cat)"],
         "keywords": ["accessories are available for pets", "pet accessories", "accessories for pets"],
-        "answer": "Handcrafted silk bowties, printed bandanas, festive collars, and leashes.\nView pet accessories: /pets",
+        "answer": "Handcrafted silk bowties, printed bandanas, festive collars, and leashes.\nView pet accessories: /pets?occasion=Accessories",
     },
     {
         "id": "B15",
         "patterns": [r"stylish outfit for my dog for a special occasion", r"outfit for my dog", r"dog (outfit|clothes|wear)", r"dress (my )?dog"],
         "keywords": ["outfit for my dog", "dog for a special occasion", "dog outfit"],
-        "answer": "Embroidered pet sherwanis, festive silk bandanas, and tailored tuxedos.\nDiscover dog occasion wear: /pets",
+        "answer": "Embroidered pet sherwanis, festive silk bandanas, and tailored tuxedos.\nDiscover dog wedding wear: /pets?occasion=Wedding",
     },
 
     # C. Twin fashion and styling recommendations
@@ -732,7 +732,7 @@ TRAINED_FAQS = [
         "id": "C21",
         "patterns": [r"twin collection would be suitable for a wedding or celebration", r"twin collection for a wedding", r"wedding twin collection"],
         "keywords": ["suitable for a wedding or celebration", "twin collection would be suitable", "wedding or celebration"],
-        "answer": "Royal silk sherwanis and lehengas paired with matching pet waistcoats.\nView wedding Twin sets: /twin",
+        "answer": "Royal silk sherwanis and lehengas paired with matching pet waistcoats.\nView wedding Twin sets: /twin?occasion=Wedding",
     },
 
     # D. Product details, sizing, and fit
@@ -746,7 +746,7 @@ TRAINED_FAQS = [
         "id": "D23",
         "patterns": [r"what sizes are available for this outfit", r"sizes available for this outfit", r"available sizes"],
         "keywords": ["sizes are available for this outfit", "sizes are available", "what sizes are available"],
-        "answer": "People sizing spans XS through XXL; pet sizing spans XS through XXL.\nCheck size options on: /shop",
+        "answer": "People sizing spans XS through XXL; pet sizing spans XS through XXL.\nView our full sizing guide: /size-guide",
     },
     {
         "id": "D24",
@@ -758,13 +758,13 @@ TRAINED_FAQS = [
         "id": "D25",
         "patterns": [r"how do i choose the correct size for myself", r"choose the correct size for myself", r"size guide for (me|human|people)"],
         "keywords": ["choose the correct size for myself", "correct size for myself", "size for myself"],
-        "answer": "Compare your bust, waist, and hip measurements with our Size Guide.\nView sizing charts on: /shop",
+        "answer": "Compare your bust, waist, and hip measurements with our Size Guide.\nView our complete sizing guide: /size-guide",
     },
     {
         "id": "D26",
         "patterns": [r"how can i measure my pet before ordering clothes", r"measure my pet", r"pet sizing guide", r"measuring (dog|cat|pet)"],
         "keywords": ["measure my pet before ordering", "measure my pet", "measuring my pet"],
-        "answer": "Measure neck girth, chest circumference, and collar-to-tail length.\nCheck pet measurement guide: /pets",
+        "answer": "Measure neck girth, chest circumference, and collar-to-tail length.\nCheck pet measurement guide: /size-guide",
     },
     {
         "id": "D27",
@@ -925,11 +925,11 @@ RESPONSES = {
     "about": ["Zenve Fashion is India's luxury atelier for people and pets together.\nExplore our collections: /collections"],
     "pets": ["Handcrafted designer apparel and comfortable accessories for pets.\nExplore the Pets collection: /pets"],
     "twin": ["Coordinated couture for you and your pet in matching fabrics.\nExplore our Twin collection: /twin"],
-    "shipping": ["Complimentary standard delivery across India within 3 to 7 days.\nCheck our shipping details: /shipping"],
+    "shipping": ["Track package milestones or review our express delivery timelines.\nTrack orders: /account/orders | Shipping details: /shipping"],
     "returns": ["Hassle-free 7-day size exchanges on all unworn items.\nReview our return policy: /refund"],
     "payment": ["We accept all major UPI, Credit/Debit Cards, and Net Banking.\nProceed to checkout: /cart"],
     "contact": ["Our concierge and support team are delighted to help you.\nReach our team here: /contact"],
-    "order": ["Track live courier milestones and order history anytime.\nView your orders: /account/orders"],
+    "order": ["Track live package milestones, or review our express delivery timelines.\nTrack orders: /account/orders | Shipping policy: /shipping"],
     "compliment": ["Thank you! It is an absolute pleasure styling for you.\nExplore our newest looks: /shop"],
     "negative": ["Apologies for any inconvenience. Please let us know how we can help.\nContact our support team: /contact"],
     "deny": ["No problem at all! Feel free to ask anytime.\nBrowse our collections: /shop"],
