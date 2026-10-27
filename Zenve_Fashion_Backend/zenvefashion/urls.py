@@ -30,6 +30,9 @@ urlpatterns = [
     re_path(r"^api/payments/?", include("payments.urls")),
     re_path(r"^api/cart/?", include("cart.urls")),
     re_path(r"^api/wishlist/?", include("wishlist.urls")),
+
+    # AI Chatbot Concierge
+    re_path(r"^api/chatbot/?", include("chatbot.urls")),
 ]
 
 if settings.DEBUG:

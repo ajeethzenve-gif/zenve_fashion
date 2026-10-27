@@ -76,6 +76,7 @@ INSTALLED_APPS = [
     "payments",
     "cart",
     "wishlist",
+    "chatbot",
 ]
 
 # =====================================================
@@ -394,3 +395,7 @@ SILENCED_SYSTEM_CHECKS = [
 LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/"
 
+# =====================================================
+# GEMINI AI
+# =====================================================
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
