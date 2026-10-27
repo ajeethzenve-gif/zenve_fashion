@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Sparkles, X, Send, ChevronDown, RefreshCw } from 'lucide-react';
+import { Sparkles, X, Send, ChevronDown, RefreshCw, ArrowRight } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../../services/api';
 
 interface ChatMessage {
@@ -46,7 +47,26 @@ const QUICK_SUGGESTIONS = [
   'Pet Outfits',
 ];
 
+function extractPageUrl(text: string): { path: string; label: string } | null {
+  const match = text.match(/(\/(?:twin|people|pets|shop|collections|cart|wishlist|account\/orders|contact|shipping|refund)[a-zA-Z0-9_\-\/?=]*)/i);
+  if (!match) return null;
+  const path = match[1];
+  let label = 'View Products';
+  if (path.startsWith('/twin')) label = 'View Twin Collection';
+  else if (path.startsWith('/people')) label = 'View People Collection';
+  else if (path.startsWith('/pets')) label = 'View Pets Collection';
+  else if (path.startsWith('/shop') || path.startsWith('/collections')) label = 'Explore Shop';
+  else if (path.startsWith('/cart')) label = 'View Shopping Bag';
+  else if (path.startsWith('/wishlist')) label = 'View Wishlist';
+  else if (path.startsWith('/account/orders')) label = 'View My Orders';
+  else if (path.startsWith('/contact')) label = 'Contact Concierge';
+  else if (path.startsWith('/shipping')) label = 'Shipping Details';
+  else if (path.startsWith('/refund')) label = 'Return Policy';
+  return { path, label };
+}
+
 export const ChatbotWidget: React.FC = () => {
+  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [hasInteracted, setHasInteracted] = useState(false);
@@ -228,6 +248,7 @@ export const ChatbotWidget: React.FC = () => {
             <div className="flex-1 overflow-y-auto p-4 space-y-3.5 text-xs" style={{ scrollbarWidth: 'thin', scrollbarColor: '#E4BD5A22 transparent' }}>
               {messages.map((msg) => {
                 const isBot = msg.sender === 'bot';
+                const page = isBot ? extractPageUrl(msg.text) : null;
                 return (
                   <div key={msg.id} className={`zenve-msg-appear flex flex-col ${isBot ? 'items-start' : 'items-end'}`}>
                     <div className={`max-w-[88%] rounded-2xl px-3.5 py-2.5 leading-relaxed whitespace-pre-line ${
@@ -237,7 +258,17 @@ export const ChatbotWidget: React.FC = () => {
                           : 'bg-[#003524]/80 text-[#F5F0DF] border border-[#E4BD5A]/20 rounded-tl-sm shadow-[0_2px_10px_rgba(0,0,0,0.2)]'
                         : 'bg-gradient-to-r from-[#E4BD5A] to-[#D5A943] text-[#001C13] font-medium rounded-tr-sm shadow-[0_2px_12px_rgba(228,189,90,0.25)]'
                     }`}>
-                      {msg.text}
+                      <div>{msg.text}</div>
+                      {page && (
+                        <button
+                          type="button"
+                          onClick={() => navigate(page.path)}
+                          className="mt-2.5 inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-[#E4BD5A] via-[#F1D27A] to-[#C99E3A] text-[#001C13] font-semibold text-[11px] shadow-[0_2px_8px_rgba(228,189,90,0.3)] hover:brightness-110 active:scale-95 transition-all"
+                        >
+                          <span>{page.label}</span>
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                     <span className="text-[9px] text-[#B8B9A8]/60 mt-1 px-1">{msg.timestamp}</span>
                   </div>

@@ -137,8 +137,8 @@ INTENTS = {
                      "how can you help": 4, "features": 2},
     "about": {"about zenve": 4, "what is zenve": 4, "zenve fashion": 3, "about you": 2,
               "your brand": 3, "your company": 3, "who owns": 3, "philosophy": 2},
-    "twin": {"twin": 4, "matching": 3, "match my pet": 4, "pet": 3, "dog": 3, "cat": 3,
-             "puppy": 3, "pets": 3},
+    "pets": {"pet outfit": 5, "pet outfits": 5, "pet clothes": 5, "dog clothes": 5, "cat clothes": 5, "pet accessories": 5, "for my dog": 4, "for my pet": 4, "for my cat": 4, "pets collection": 5, "pet collection": 5, "dog": 3, "cat": 3, "puppy": 3, "kitten": 3, "pet": 3, "pets": 3},
+    "twin": {"twin": 5, "twin collection": 5, "matching": 4, "match my pet": 5, "coordinated": 4},
     "colour": {"colour": 3, "color": 3, "colours": 3, "colors": 3, "goes with": 4,
                "go with": 4, "match with": 3, "combination": 3, "pair with": 4, "palette": 2,
                "skin tone": 3},
@@ -422,14 +422,14 @@ def is_fashion_domain(message: str, history: list | None = None) -> bool:
     return False
 
 def enforce_line_limit(text: str, max_lines: int = 3, min_lines: int = 2) -> str:
-    """Ensure the reply strictly has 2 or 3 lines."""
+    """Ensure the reply strictly has 2 or 3 short lines."""
     if not text:
         return ""
     
     text = text.strip()
     raw_lines = [line.strip() for line in text.split("\n") if line.strip()]
     
-    # If text already has 2 or more lines, clamp between min_lines and max_lines
+    # If text already has 2 or more lines, clamp to at most max_lines
     if len(raw_lines) >= min_lines:
         return "\n".join(raw_lines[:max_lines]).strip()
     
@@ -447,10 +447,8 @@ def enforce_line_limit(text: str, max_lines: int = 3, min_lines: int = 2) -> str
                 split_idx = idx + len(punct)
                 return f"{text[:split_idx].strip()}\n{text[split_idx:].strip()}"
     
-    # Ensure at least 2 lines by appending a polite concierge note
-    return f"{text}\nFeel free to explore our collections or ask for styling advice."
-
-# ---------------------------------------------------------------------------
+    # Ensure 2 lines by suggesting the shop URL
+    return f"{text}\nExplore our collections here: /shop"
 
 _OPS = {ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul,
         ast.Div: operator.truediv, ast.Mod: operator.mod, ast.Pow: operator.pow,
@@ -565,63 +563,42 @@ def _greeting() -> str:
 def _colour_reply(ent: dict) -> str:
     colours = ent.get("colours", [])
     if colours:
-        parts = [COLOUR_PAIRINGS[c] for c in colours[:2]]
-        return " ".join(parts) + "\n\nWould you like me to look for pieces in these shades?"
-    return ("Colour is where the magic begins! As a quick guide: warm undertones glow in mustard, rust, coral, olive, and gold; "
-            "cool undertones shine in emerald, sapphire, lavender, and silver; and neutrals like ivory, navy, and blush flatter almost everyone.\n\n"
-            "Tell me a colour you love — say \"what goes with maroon?\" — and I will suggest perfect pairings.")
+        c = colours[0]
+        return f"Shades of {c} look stunning paired with gold, ivory, or pearl accents.\nExplore {c} outfits here: /shop"
+    return "Warm tones glow in mustard and rust, while cool tones shine in emerald and sapphire.\nFilter products by colour: /shop"
 
 
 def _fabric_reply(ent: dict, care_focus: bool = False) -> str:
     fabrics = ent.get("fabrics", [])
     if fabrics:
-        return "\n\n".join(FABRICS[f] for f in fabrics[:2]) + "\n\nShall I suggest an occasion or outfit for this fabric?"
-    if care_focus:
-        return ("General care tips: always check the care label, wash darks separately in cold water, dry delicate fabrics in shade, "
-                "and store silks and embroidered pieces wrapped in muslin. Which fabric are you caring for — silk, cotton, linen, velvet?")
-    return ("Each fabric has its own personality: silk and velvet for grand celebrations, cotton, linen, and khadi for breathable everyday comfort, "
-            "georgette and chiffon for graceful drapes, and chanderi or organza for light festive elegance. Which one would you like to know more about?")
+        f = fabrics[0]
+        return f"Our {f} garments are handcrafted for breathability and luxury drape.\nExplore {f} designs: /shop"
+    return "We handcraft our couture in pure silk, breathable cotton, and chanderi.\nBrowse by fabric here: /shop"
 
 
 def _occasion_reply(ent: dict) -> str:
     occ = ent.get("occasions", [])
     if occ:
-        reply = OCCASIONS[occ[0]]
-        if ent.get("colours"):
-            reply += f" Since you mentioned {ent['colours'][0]}, " + COLOUR_PAIRINGS[ent["colours"][0]][0].lower() + COLOUR_PAIRINGS[ent["colours"][0]][1:]
-        return reply + "\n\nWould you like me to check our collection for something suitable?"
-    return ("I would love to help you style a look! Which occasion are you dressing for — a wedding, reception, festival, office, party, "
-            "casual day out, or a vacation? Any favourite colours will help too.")
+        o = occ[0]
+        return f"For {o}, we recommend our regal silk ensembles and statement motifs.\nExplore occasion outfits: /shop"
+    return "From royal weddings to festive parties, discover our designer wear.\nBrowse occasion couture: /shop"
 
 
 def _size_reply(ent: dict) -> str:
-    return ("Here is a quick guide to our sizes (bust / waist in inches, approximate):\n"
-            "• XS: 32 / 26\n• S: 34 / 28\n• M: 36 / 30\n• L: 38 / 32\n• XL: 40 / 34\n• XXL: 42 / 36\n• Free Size: relaxed, adjustable fit\n\n"
-            "Measure around the fullest part of your bust and the narrowest part of your waist. If you fall between sizes, choose the larger one for comfort. "
-            "Each product page also lists its exact size details.")
+    return "We offer sizes XS through XXL for humans and XS to XXL for pets.\nView our full sizing chart on: /shop"
 
 
 def _shop_reply(ent: dict, tokens: set[str]) -> str:
-    advice = (OCCASIONS[ent["occasions"][0]] + "\n\n") if ent.get("occasions") else ""
-    return advice + _shop_results(ent, tokens)
+    cat = ent.get("categories", [])
+    if "twin" in cat or "matching" in tokens or "twin" in tokens:
+        return "Coordinated couture for you and your pet in matching fabrics.\nExplore the Twin collection: /twin"
+    if "pet" in cat or "dog" in cat or "cat" in cat:
+        return "Handcrafted designer apparel and comfortable accessories for pets.\nExplore the Pets collection: /pets"
+    if "men" in cat or "women" in cat or "people" in cat:
+        return "Handcrafted ethnic and modern designer wear for men and women.\nExplore the People collection: /people"
+    return "Browse our luxury collection of artisanal couture and festive wear.\nExplore all products: /shop"
 
 
-def _shop_results(ent: dict, tokens: set[str]) -> str:
-    products = _search_products(ent, tokens)
-    desc = _describe_filters(ent)
-    if products is None:
-        return "I am unable to browse the collection right this moment. Please explore our Shop page, and I will happily help with styling advice meanwhile."
-    if products:
-        return f"Here are some {desc} from our collection that you may love:\n{_format_products(products)}\n\nWould you like styling ideas for any of these?"
-    if any(k in ent for k in ("colours", "fabrics", "categories", "size", "max_price", "min_price")):
-        return (f"I could not find {desc} in our live collection just now. Try relaxing a filter — a different shade, fabric, or budget — "
-                "or browse the Shop page for our full range. I can also suggest what to look for if you tell me the occasion.")
-    return ("Our curated collection is being refreshed at the moment. Do browse the Shop page for the latest arrivals — "
-            "and tell me the occasion, colour, or budget you have in mind so I can guide you.")
-
-
-
-# ---------------------------------------------------------------------------
 # 45 TRAINED FAQ RESPONSES (SECTIONS A - G)
 # ---------------------------------------------------------------------------
 
@@ -629,643 +606,285 @@ TRAINED_FAQS = [
     # A. General website and brand questions
     {
         "id": "A1",
-        "patterns": [
-            r"what is zenve",
-            r"what makes (it|zenve) different",
-            r"about zenve fashion",
-            r"why choose zenve",
-            r"difference between zenve and other",
-        ],
+        "patterns": [r"what is zenve", r"what makes (it|zenve) different", r"about zenve fashion", r"why choose zenve", r"difference between zenve and other"],
         "keywords": ["zenve", "different", "brand", "website", "what is zenve"],
-        "answer": (
-            "Zenve Fashion is India's premier luxury atelier designing couture for people and their pets together.\n"
-            "We stand apart through artisanal craftsmanship, sustainable slow fashion, and our signature matching Twin sets."
-        ),
+        "answer": "Zenve Fashion is India's luxury couture atelier for people and pets together.\nExplore our brand story and collections: /collections",
     },
     {
         "id": "A2",
-        "patterns": [
-            r"what types of products can i buy",
-            r"what (products|items) (can i buy|do you sell|are available)",
-            r"what do you sell",
-            r"product categories",
-        ],
+        "patterns": [r"what types of products can i buy", r"what (products|items) (can i buy|do you sell|are available)", r"what do you sell", r"product categories"],
         "keywords": ["types of products", "can i buy", "what do you sell", "products can i buy"],
-        "answer": (
-            "You can shop designer ethnic and contemporary wear for men and women, handcrafted apparel for pets, and coordinated Twin collections.\n"
-            "We also offer bespoke styling, artisanal accessories, bandanas, and festive wear."
-        ),
+        "answer": "Shop ethnic & contemporary wear, handcrafted pet apparel, and Twin sets.\nBrowse our full catalog: /shop",
     },
     {
         "id": "A3",
-        "patterns": [
-            r"difference between people,? pets,? and twin",
-            r"what is (the )?difference between people,? pets",
-            r"people vs pets vs twin",
-            r"explain people pets twin",
-        ],
+        "patterns": [r"difference between people,? pets,? and twin", r"what is (the )?difference between people,? pets", r"people vs pets vs twin", r"explain people pets twin"],
         "keywords": ["difference between people", "pets and twin", "people pets twin"],
-        "answer": (
-            "Our People collection features couture for men and women, the Pets line offers pet-friendly comfort wear, and Twin sets deliver coordinated matching looks.\n"
-            "Each Twin set shares identical fabrics, handloom textures, and embroidery motifs for you and your companion."
-        ),
+        "answer": "People has human couture, Pets has pet wear, and Twin coordinates both.\nExplore our Twin collection: /twin",
     },
     {
         "id": "A4",
-        "patterns": [
-            r"how (can|do) i explore all (the )?collections",
-            r"explore all collections",
-            r"browse (all )?collections",
-            r"where can i see all collections",
-        ],
+        "patterns": [r"how (can|do) i explore all (the )?collections", r"explore all collections", r"browse (all )?collections", r"where can i see all collections"],
         "keywords": ["explore all collections", "explore the collections", "browse all collections"],
-        "answer": (
-            "Use the top navigation bar to explore People, Pets, and Twin collections directly.\n"
-            "You can also visit the Shop page to filter by designer, occasion, fabric, and color."
-        ),
+        "answer": "Use our top navigation bar or filter by collection on our Shop page.\nExplore all collections here: /collections",
     },
     {
         "id": "A5",
-        "patterns": [
-            r"does zenve (fashion )?offer designer outfits for both people and pets",
-            r"designer outfits for both people and pets",
-            r"designer (wear|clothes|outfits) for (both )?people and pets",
-        ],
+        "patterns": [r"does zenve (fashion )?offer designer outfits for both people and pets", r"designer outfits for both people and pets", r"designer (wear|clothes|outfits) for (both )?people and pets"],
         "keywords": ["designer outfits for both", "people and pets", "outfits for both people"],
-        "answer": (
-            "Yes! Zenve collaborates with top Indian artisans and designers to curate luxury outfits for both humans and pets.\n"
-            "Every piece is handcrafted with skin-safe, premium fabrics and bespoke tailoring."
-        ),
+        "answer": "Yes, our ateliers craft bespoke luxury couture for humans and their pets.\nDiscover outfits for both: /collections",
     },
 
     # B. Product discovery and shopping
     {
         "id": "B6",
-        "patterns": [
-            r"what products are currently available in the people collection",
-            r"products (currently )?available in (the )?people collection",
-            r"people collection (products|items)",
-        ],
-        "keywords": ["people collection", "available in the people", "products are currently available in the people"],
-        "answer": (
-            "Our People collection includes designer kurtas, lehengas, anarkalis, festive sherwanis, sarees, and relaxed linen casualwear.\n"
-            "Explore the People section in our main menu to view all active designer pieces."
-        ),
+        "patterns": [r"what products are currently available in the people collection", r"products in (the )?people collection", r"people collection (items|products|clothes)", r"show me people collection"],
+        "keywords": ["people collection", "products in people", "available in people"],
+        "answer": "Handcrafted silk sarees, designer lehengas, kurtas, and modern silhouettes.\nBrowse the People collection: /people",
     },
     {
         "id": "B7",
-        "patterns": [
-            r"recommend (a |an )?(stylish )?outfit for (a )?wedding",
-            r"outfit for (a )?wedding",
-            r"what should i wear to a wedding",
-            r"wedding (dress|wear|outfit) recommendation",
-        ],
-        "keywords": ["outfit for a wedding", "stylish outfit for a wedding", "wear for a wedding", "wedding outfit"],
-        "answer": (
-            "For weddings, we recommend opulent silk lehengas or sherwanis in regal jewel tones like emerald green, deep maroon, and royal gold.\n"
-            "Detailed zari embroidery and brocade fabrics make an unforgettable statement."
-        ),
+        "patterns": [r"recommend a stylish outfit for a wedding", r"wedding (outfit|wear|dress|clothes|lehenga)", r"what to wear to a wedding", r"wedding guest outfit"],
+        "keywords": ["outfit for a wedding", "wedding outfit", "wedding wear", "wedding clothes"],
+        "answer": "Opulent silk lehengas and royal sherwanis in emerald, maroon, and gold.\nExplore wedding couture: /shop",
     },
     {
         "id": "B8",
-        "patterns": [
-            r"what should i wear for an evening party",
-            r"(outfit|dress) for (an )?evening party",
-            r"recommend (something )?for (a |an )?evening party",
-        ],
-        "keywords": ["wear for an evening party", "evening party", "outfit for an evening party"],
-        "answer": (
-            "A sleek georgette anarkali, structured velvet blazer, or fluid satin gown in midnight blue or wine adds instant glamour.\n"
-            "Pair with statement metallic accessories to complete your evening look."
-        ),
+        "patterns": [r"what should i wear for an evening party", r"evening party (outfit|wear|dress)", r"party wear outfit", r"party wear"],
+        "keywords": ["evening party", "party wear", "party outfit", "wear for an evening party"],
+        "answer": "Shimmering georgette sarees, velvet evening gowns, and sleek blazers.\nDiscover evening party styles: /shop",
     },
     {
         "id": "B9",
-        "patterns": [
-            r"(which|what) outfits would you recommend for everyday use",
-            r"(outfit|clothes) for everyday (use)?",
-            r"recommend for everyday",
-            r"daily wear recommendation",
-        ],
-        "keywords": ["everyday use", "recommend for everyday", "outfits for everyday"],
-        "answer": (
-            "For effortless daily elegance, breathable handloom cotton kurtis, soft linen shirts, and relaxed khadi co-ords are ideal.\n"
-            "They offer all-day comfort while keeping you impeccably styled."
-        ),
+        "patterns": [r"outfits would you recommend for everyday use", r"everyday (use|wear|outfits|clothing)", r"casual (wear|outfits|clothes)", r"daily wear"],
+        "keywords": ["everyday use", "everyday wear", "casual wear", "daily wear"],
+        "answer": "Breathable pure cotton kurtas, soft linen shirts, and relaxed co-ords.\nBrowse everyday wear: /shop",
     },
     {
         "id": "B10",
-        "patterns": [
-            r"do you have festive clothing suitable for indian celebrations",
-            r"festive clothing (suitable for|for) indian celebrations",
-            r"festive clothing suitable for indian",
-            r"indian festive (wear|clothes|outfits)",
-        ],
-        "keywords": ["festive clothing", "indian celebrations", "suitable for indian celebrations"],
-        "answer": (
-            "Yes, our Festive Range features rich Chanderi, Banarasi silk, and handcrafted gota patti embroidery for celebrations like Diwali, Navratri, and Eid.\n"
-            "Browse our Festive Edit on the Shop page for celebratory ensembles."
-        ),
+        "patterns": [r"festive clothing suitable for indian celebrations", r"festive (clothing|wear|outfits)", r"indian celebrations", r"diwali|eid|puja outfits"],
+        "keywords": ["festive clothing", "indian celebrations", "festive wear", "festive outfits"],
+        "answer": "Hand-embroidered chanderi kurtas, brocade lehengas, and silk kurtas.\nShop festive collections: /shop",
     },
     {
         "id": "B11",
-        "patterns": [
-            r"what clothing options are suitable for workwear",
-            r"(clothing|outfit) options (suitable )?for workwear",
-            r"suitable for workwear",
-            r"office wear options",
-        ],
-        "keywords": ["suitable for workwear", "options are suitable for workwear", "workwear"],
-        "answer": (
-            "Clean-cut cotton kurtas, structured tailored bandis, and crisp linen shirts in muted tones like ivory, beige, and slate grey are perfect for workwear.\n"
-            "They blend professional polish with breathable, all-day comfort."
-        ),
+        "patterns": [r"clothing options are suitable for workwear", r"workwear (options|clothing|outfits)", r"office wear", r"formal (wear|clothing)"],
+        "keywords": ["suitable for workwear", "workwear", "office wear", "formal wear"],
+        "answer": "Crisp linen shirts, tailored cotton kurtis, and minimalist trousers.\nExplore elegant workwear: /shop",
     },
     {
         "id": "B12",
-        "patterns": [
-            r"recommend outfits for a holiday or resort vacation",
-            r"(outfits|clothes) for (a )?(holiday|resort|vacation)",
-            r"holiday or resort vacation",
-            r"resort wear",
-        ],
-        "keywords": ["holiday or resort vacation", "resort vacation", "outfits for a holiday"],
-        "answer": (
-            "Breezy linen sets, printed cotton kaftans, and relaxed resort shirts in oceanic blues, ivory, and pastel yellows are vacation essentials.\n"
-            "They pack lightly and keep you chic under sunny skies."
-        ),
+        "patterns": [r"recommend outfits for a holiday or resort vacation", r"holiday or resort (vacation|outfits)", r"resort wear", r"vacation (outfits|clothes)"],
+        "keywords": ["holiday or resort vacation", "resort wear", "vacation outfits", "holiday outfits"],
+        "answer": "Breezy printed resort shirts, airy cotton dresses, and flowy kaftans.\nExplore vacation styles: /shop",
     },
     {
         "id": "B13",
-        "patterns": [
-            r"do you have clothing suitable for winter or monsoon weather",
-            r"clothing suitable for winter or monsoon",
-            r"winter or monsoon weather",
-            r"winter or monsoon",
-        ],
-        "keywords": ["winter or monsoon", "winter or monsoon weather", "suitable for winter or monsoon"],
-        "answer": (
-            "For winter, we feature plush velvet kurtas, lined sherwanis, and wool-blend layers; for monsoon, we recommend fast-drying cottons and lightweight georgettes.\n"
-            "Check our Seasonals tab on the Shop page for weather-ready fashion."
-        ),
+        "patterns": [r"clothing suitable for winter or monsoon weather", r"winter or monsoon (weather|clothing)", r"winter (wear|clothes)", r"monsoon (wear|clothes)"],
+        "keywords": ["winter or monsoon weather", "winter clothing", "monsoon clothing"],
+        "answer": "Plush velvet bandhgalas for winter and quick-dry cottons for monsoon.\nShop seasonal weather wear: /shop",
     },
     {
         "id": "B14",
-        "patterns": [
-            r"what accessories are available for pets",
-            r"accessories (available )?for pets",
-            r"pet accessories available",
-            r"accessories for pets",
-        ],
-        "keywords": ["accessories are available for pets", "accessories for pets", "pet accessories"],
-        "answer": (
-            "Our pet accessories include artisanal printed bandanas, embroidered collars, velvet bow ties, festive dupattas, and padded coordinating leashes.\n"
-            "All items use pet-friendly, non-toxic hardware and hypoallergenic fabrics."
-        ),
+        "patterns": [r"what accessories are available for pets", r"pet accessories", r"accessories for pets", r"accessories for (my )?(dog|cat)"],
+        "keywords": ["accessories are available for pets", "pet accessories", "accessories for pets"],
+        "answer": "Handcrafted silk bowties, printed bandanas, festive collars, and leashes.\nView pet accessories: /pets",
     },
     {
         "id": "B15",
-        "patterns": [
-            r"suggest a stylish outfit for my dog for a special occasion",
-            r"(stylish )?outfit for my dog for a special occasion",
-            r"dog outfit for a special occasion",
-            r"special occasion outfit for dog",
-        ],
-        "keywords": ["outfit for my dog for a special occasion", "stylish outfit for my dog", "dog for a special occasion"],
-        "answer": (
-            "A tailored brocade pet sherwani or a festive silk vest lined with breathable muslin is perfect for your dog's special day.\n"
-            "It features ergonomic chest snaps so your pet stays handsome, regal, and happy."
-        ),
+        "patterns": [r"stylish outfit for my dog for a special occasion", r"outfit for my dog", r"dog (outfit|clothes|wear)", r"dress (my )?dog"],
+        "keywords": ["outfit for my dog", "dog for a special occasion", "dog outfit"],
+        "answer": "Embroidered pet sherwanis, festive silk bandanas, and tailored tuxedos.\nDiscover dog occasion wear: /pets",
     },
 
     # C. Twin fashion and styling recommendations
     {
         "id": "C16",
-        "patterns": [
-            r"what is twin fashion,? and how does it work",
-            r"what is twin fashion",
-            r"how does twin fashion work",
-            r"explain twin fashion",
-        ],
-        "keywords": ["what is twin fashion", "twin fashion and how does it work", "how does it work twin"],
-        "answer": (
-            "Twin Fashion is Zenve's signature concept pairing coordinated human couture with pet outfits in matching artisan textiles and colors.\n"
-            "You choose your ensemble, and your pet receives an ergonomically designed counterpart in identical fabric and detailing."
-        ),
+        "patterns": [r"what is twin fashion,? and how does it work", r"what is twin fashion", r"how does twin fashion work", r"explain twin fashion", r"^twin collection$"],
+        "keywords": ["what is twin fashion", "twin fashion", "how does it work", "twin collection"],
+        "answer": "Coordinated couture pairing human outfits with matching pet apparel.\nExplore our Twin collection: /twin",
     },
     {
         "id": "C17",
-        "patterns": [
-            r"can you find matching outfits for me and my dog",
-            r"matching outfits for me and my dog",
-            r"outfits for me and my dog",
-            r"match me and my dog",
-        ],
+        "patterns": [r"matching outfits for me and my dog", r"matching outfit for (me and my dog|dog and me)", r"twin outfits for dog"],
         "keywords": ["matching outfits for me and my dog", "outfits for me and my dog", "me and my dog"],
-        "answer": (
-            "Yes! Explore our Twin Collection to discover coordinated sets like festive brocade kurtas with matching canine vests and silk bandanas.\n"
-            "Select your size and your dog's breed size to order the synchronized duo."
-        ),
+        "answer": "Identical fabrics, festive prints, and colors tailored for you and your dog.\nView matching dog sets: /twin",
     },
     {
         "id": "C18",
-        "patterns": [
-            r"do you have coordinated outfits for people and cats",
-            r"coordinated outfits for people and cats",
-            r"outfits for people and cats",
-            r"matching outfits for cats",
-        ],
+        "patterns": [r"coordinated outfits for people and cats", r"matching outfits for (people and cats|cat and me)", r"cat twin outfits"],
         "keywords": ["coordinated outfits for people and cats", "people and cats", "outfits for people and cats"],
-        "answer": (
-            "Yes! We design ultra-lightweight, stress-free cat capes, collars, and bandanas tailored to match your saree, kurta, or dress.\n"
-            "They are crafted from feather-light muslin and chanderi so your feline stays peaceful and poised."
-        ),
+        "answer": "Lightweight skin-safe bandanas and capes paired with human attire.\nView cat coordinated sets: /twin",
     },
     {
         "id": "C19",
-        "patterns": [
-            r"can you recommend matching outfits for a festive photoshoot",
-            r"recommend matching outfits for a festive photoshoot",
-            r"matching outfits for a festive photoshoot",
-            r"festive photoshoot outfits",
-        ],
-        "keywords": ["matching outfits for a festive photoshoot", "festive photoshoot", "photoshoot"],
-        "answer": (
-            "For celebratory photoshoots, rich marigold yellow chanderi or royal emerald silk twin sets reflect studio and outdoor light gorgeously.\n"
-            "Coordinate subtle gold zari accents across both outfits for breathtaking portraits."
-        ),
+        "patterns": [r"matching outfits for a festive photoshoot", r"festive photoshoot (outfits|twin)", r"photoshoot matching outfits"],
+        "keywords": ["matching outfits for a festive photoshoot", "festive photoshoot", "photoshoot outfits"],
+        "answer": "Heritage brocade and zari motifs created for picture-perfect memories.\nExplore photoshoot twin sets: /twin",
     },
     {
         "id": "C20",
-        "patterns": [
-            r"how can i coordinate my outfit with my pet without looking too similar",
-            r"coordinate my outfit with my pet without looking too similar",
-            r"without looking too similar",
-            r"coordinate with pet without looking identical",
-        ],
-        "keywords": ["without looking too similar", "coordinate my outfit with my pet", "too similar"],
-        "answer": (
-            "Opt for accent coordination: match your pet's bandana or collar to your pocket square, dupatta border, or footwear rather than full print duplication.\n"
-            "Using harmonious tone-on-tone shades like sage and olive also creates refined balance."
-        ),
+        "patterns": [r"coordinate my outfit with my pet without looking too similar", r"without looking too similar", r"subtle matching with pet"],
+        "keywords": ["without looking too similar", "coordinate my outfit with my pet", "coordinate with my pet"],
+        "answer": "Match a pocket square or scarf to your pet's collar instead of full prints.\nExplore Twin collection: /twin",
     },
     {
         "id": "C21",
-        "patterns": [
-            r"which twin collection would be suitable for a wedding or celebration",
-            r"twin collection (would be )?suitable for a wedding or celebration",
-            r"twin collection for a wedding",
-            r"wedding twin collection",
-        ],
-        "keywords": ["twin collection would be suitable for a wedding", "twin collection for a wedding or celebration", "wedding or celebration"],
-        "answer": (
-            "Our Royal Heritage Twin collection in pure Banarasi silk and antique zari is tailor-made for weddings and galas.\n"
-            "It pairs a majestic human ensemble with a comfortable, regal pet sherwani."
-        ),
+        "patterns": [r"twin collection would be suitable for a wedding or celebration", r"twin collection for a wedding", r"wedding twin collection"],
+        "keywords": ["suitable for a wedding or celebration", "twin collection would be suitable", "wedding or celebration"],
+        "answer": "Royal silk sherwanis and lehengas paired with matching pet waistcoats.\nView wedding Twin sets: /twin",
     },
 
     # D. Product details, sizing, and fit
     {
         "id": "D22",
-        "patterns": [
-            r"what material is this product made from",
-            r"what material is (the|this) (product|outfit|fabric) made from",
-            r"material is this product made from",
-            r"what material is",
-        ],
-        "keywords": ["material is this product made from", "material is this product", "material is this"],
-        "answer": (
-            "Each garment lists its exact composition under the Product Details tab — we use pure silks, organic cottons, handspun khadi, and fine linen.\n"
-            "Pet wear is additionally lined with hypoallergenic muslin for maximum comfort."
-        ),
+        "patterns": [r"what material is this product made from", r"what (material|fabric) is (this|the) product made from", r"product fabric|product material"],
+        "keywords": ["material is this product made from", "what material is this product", "fabric is this product"],
+        "answer": "Crafted from mulberry silk, breathable cotton, chanderi, and velvet.\nView fabric details on products: /shop",
     },
     {
         "id": "D23",
-        "patterns": [
-            r"what sizes are available for this outfit",
-            r"sizes (are )?available for this outfit",
-            r"what sizes are available",
-            r"available sizes for this outfit",
-        ],
-        "keywords": ["sizes are available for this outfit", "sizes are available", "available for this outfit"],
-        "answer": (
-            "People apparel is offered in sizes XS through XXL (with custom sizing available), while pet garments range from XS (puppy/kitten) to XXL (large breeds).\n"
-            "Check the Size Selector on the product page for current availability."
-        ),
+        "patterns": [r"what sizes are available for this outfit", r"sizes available for this outfit", r"available sizes"],
+        "keywords": ["sizes are available for this outfit", "sizes are available", "what sizes are available"],
+        "answer": "People sizing spans XS through XXL; pet sizing spans XS through XXL.\nCheck size options on: /shop",
     },
     {
         "id": "D24",
-        "patterns": [
-            r"does this product come in different colou?rs",
-            r"come in different colou?rs",
-            r"different colou?rs",
-            r"colou?r options",
-        ],
-        "keywords": ["different colours", "different colors", "come in different"],
-        "answer": (
-            "Yes, available colorways are displayed as color chips on each product's page.\n"
-            "Our bespoke atelier can also hand-dye select designer pieces in custom shades upon request."
-        ),
+        "patterns": [r"does this product come in different colou?rs", r"different colou?rs available", r"colou?r options"],
+        "keywords": ["different colours", "different colors", "product come in different"],
+        "answer": "Yes, available colourways are displayed as color chips on product cards.\nBrowse all shades on: /shop",
     },
     {
         "id": "D25",
-        "patterns": [
-            r"how do i choose the correct size for myself",
-            r"choose the correct size for myself",
-            r"correct size for myself",
-            r"choose size for myself",
-        ],
-        "keywords": ["correct size for myself", "choose the correct size", "size for myself"],
-        "answer": (
-            "Refer to the 'Size Guide' button on the product page to check your bust, waist, and hip measurements against our chart.\n"
-            "If you are between sizes, we recommend selecting the larger size for a relaxed, comfortable drape."
-        ),
+        "patterns": [r"how do i choose the correct size for myself", r"choose the correct size for myself", r"size guide for (me|human|people)"],
+        "keywords": ["choose the correct size for myself", "correct size for myself", "size for myself"],
+        "answer": "Compare your bust, waist, and hip measurements with our Size Guide.\nView sizing charts on: /shop",
     },
     {
         "id": "D26",
-        "patterns": [
-            r"how can i measure my pet before ordering clothes",
-            r"measure my pet before ordering clothes",
-            r"measure my pet before ordering",
-            r"how to measure my pet",
-        ],
-        "keywords": ["measure my pet before ordering", "measure my pet", "before ordering clothes"],
-        "answer": (
-            "Measure your pet's neck circumference, chest girth at the widest ribcage area, and back length from collar base to tail base.\n"
-            "Compare these three numbers with our Pet Sizing Chart for the perfect snug yet breathable fit."
-        ),
+        "patterns": [r"how can i measure my pet before ordering clothes", r"measure my pet", r"pet sizing guide", r"measuring (dog|cat|pet)"],
+        "keywords": ["measure my pet before ordering", "measure my pet", "measuring my pet"],
+        "answer": "Measure neck girth, chest circumference, and collar-to-tail length.\nCheck pet measurement guide: /pets",
     },
     {
         "id": "D27",
-        "patterns": [
-            r"will this pet outfit allow my dog to move comfortably",
-            r"allow my dog to move comfortably",
-            r"dog to move comfortably",
-            r"pet outfit move comfortably",
-        ],
-        "keywords": ["move comfortably", "allow my dog to move", "allow my dog to move comfortably"],
-        "answer": (
-            "Absolutely. Zenve pet garments are ergonomically crafted with stretch gussets, wide leg cutouts, and soft inner linings.\n"
-            "Your pet can walk, sit, run, and relieve themselves without restriction."
-        ),
+        "patterns": [r"will this pet outfit allow my dog to move comfortably", r"allow my dog to move comfortably", r"dog comfort|comfortable pet clothes"],
+        "keywords": ["allow my dog to move comfortably", "move comfortably", "comfortable for my dog"],
+        "answer": "Yes, our pet garments feature stretch gussets for full mobility and comfort.\nExplore comfortable pet wear: /pets",
     },
     {
         "id": "D28",
-        "patterns": [
-            r"can i see more pictures and details of a product before purchasing",
-            r"see more pictures and details of a product",
-            r"more pictures and details of a product",
-            r"pictures and details before purchasing",
-        ],
-        "keywords": ["see more pictures and details", "pictures and details of a product", "before purchasing"],
-        "answer": (
-            "Yes! Every product page features multi-angle high-resolution photography, fabric zoom, model dimensions, and styling videos.\n"
-            "Tap any image in the gallery to inspect the weave, texture, and embroidery up close."
-        ),
+        "patterns": [r"can i see more pictures and details of a product before purchasing", r"more pictures and details", r"product pictures|product photos"],
+        "keywords": ["more pictures and details of a product", "more pictures and details", "pictures of a product"],
+        "answer": "Every product page features multi-angle high-res zoomable photos.\nInspect product details on: /shop",
     },
     {
         "id": "D29",
-        "patterns": [
-            r"does the price change depending on the selected size",
-            r"price change depending on the selected size",
-            r"price change depending on size",
-            r"does price change with size",
-        ],
-        "keywords": ["price change depending on the selected size", "price change depending", "selected size"],
-        "answer": (
-            "Standard ready-to-wear sizes from XS to XXL are priced identically.\n"
-            "Only specialized bespoke customizations requiring extensive hand-embroidery or custom fabric yardage reflect nominal adjustments."
-        ),
+        "patterns": [r"does the price change depending on the selected size", r"price change depending on (the selected )?size", r"size price difference"],
+        "keywords": ["price change depending on the selected size", "price change depending on", "price change by size"],
+        "answer": "Standard ready-to-wear sizes XS to XXL are priced identically.\nView product prices: /shop",
     },
 
     # E. Prices, discounts, and availability
     {
         "id": "E30",
-        "patterns": [
-            r"what is the price of this product",
-            r"price of this product",
-            r"what is the price",
-            r"cost of this product",
-        ],
-        "keywords": ["price of this product", "what is the price of this product"],
-        "answer": (
-            "All product prices in INR (inclusive of all applicable taxes) are clearly displayed next to the item name on its product card and page.\n"
-            "Any ongoing festive discounts are factored into the displayed price."
-        ),
+        "patterns": [r"what is the price of this product", r"product price", r"how much does this cost"],
+        "keywords": ["price of this product", "what is the price", "cost of this product"],
+        "answer": "Prices in INR (inclusive of all taxes) are clearly marked on each card.\nBrowse product pricing: /shop",
     },
     {
         "id": "E31",
-        "patterns": [
-            r"are there any discounts available on this outfit",
-            r"discounts available on this outfit",
-            r"discounts on this outfit",
-            r"any discounts available",
-        ],
-        "keywords": ["discounts available on this outfit", "discounts available", "discounts on this outfit"],
-        "answer": (
-            "Current seasonal promotions and active coupon codes are showcased on our top promotional banner.\n"
-            "You can enter eligible voucher codes at checkout to apply instant discounts."
-        ),
+        "patterns": [r"are there any discounts available on this outfit", r"discounts available", r"coupons|promo codes"],
+        "keywords": ["discounts available on this outfit", "discounts available", "any discounts available"],
+        "answer": "Active seasonal promotional codes are displayed on our top banner.\nShop discounted styles: /shop",
     },
     {
         "id": "E32",
-        "patterns": [
-            r"can you show me products within my budget of ?[₹rs\.]* ?2,?000",
-            r"show me products within my budget of ?[₹rs\.]* ?2,?000",
-            r"products within my budget of ?[₹rs\.]* ?2,?000",
-            r"budget of ?[₹rs\.]* ?2,?000",
-        ],
-        "keywords": ["budget of 2,000", "budget of 2000", "within my budget of", "budget of 2"],
-        "answer": (
-            "You can find handcrafted pet bandanas, bowties, cotton accessories, and light dupattas in our Under ₹2,000 curation.\n"
-            "Use the price slider on our Shop page to browse all pieces tailored to your exact budget."
-        ),
+        "patterns": [r"can you show me products within my budget of (inr|rs|₹)?\s*2,?000", r"budget of (inr|rs|₹)?\s*2,?000", r"under 2000"],
+        "keywords": ["budget of 2,000", "budget of 2000", "under 2000", "under ₹2,000"],
+        "answer": "Discover pet bandanas, bowties, cotton dupattas, and accessories under ₹2,000.\nFilter budget products: /shop",
     },
     {
         "id": "E33",
-        "patterns": [
-            r"which products are currently in stock",
-            r"products are currently in stock",
-            r"currently in stock",
-            r"which products in stock",
-        ],
-        "keywords": ["currently in stock", "products are currently in stock", "which products are currently"],
-        "answer": (
-            "All items displayed on our website with an active 'Add to Cart' button are currently in stock and ready for processing.\n"
-            "You can also use the 'In Stock' filter on the Shop page to view immediate-dispatch collections."
-        ),
+        "patterns": [r"which products are currently in stock", r"currently in stock", r"in stock products"],
+        "keywords": ["products are currently in stock", "currently in stock", "in stock"],
+        "answer": "All items with an active 'Add to Cart' button are in stock for fast dispatch.\nView in-stock collection: /shop",
     },
     {
         "id": "E34",
-        "patterns": [
-            r"can i find similar products at a lower price",
-            r"find similar products at a lower price",
-            r"similar products at a lower price",
-            r"similar at a lower price",
-        ],
-        "keywords": ["similar products at a lower price", "at a lower price", "similar products at a lower"],
-        "answer": (
-            "Yes, check the 'You May Also Like' and 'Similar Styles' recommendations at the bottom of each product page for budget-friendly alternatives.\n"
-            "You can also sort any collection by 'Price: Low to High'."
-        ),
+        "patterns": [r"can i find similar products at a lower price", r"similar products at a lower price", r"cheaper alternative"],
+        "keywords": ["similar products at a lower price", "similar products lower price", "lower price"],
+        "answer": "Check 'Similar Styles' on any item, or sort our shop by Price: Low to High.\nBrowse affordable pieces: /shop",
     },
     {
         "id": "E35",
-        "patterns": [
-            r"how can i sort products by price or ratings",
-            r"sort products by price or ratings",
-            r"sort by price or ratings",
-            r"sort products by price",
-        ],
-        "keywords": ["sort products by price or ratings", "sort products by price", "price or ratings"],
-        "answer": (
-            "On the Shop or Collection page, click the 'Sort By' dropdown on the top-right to order pieces by Price: Low to High, High to Low, or Customer Rating.\n"
-            "You can combine sorting with category filters for effortless discovery."
-        ),
+        "patterns": [r"how can i sort products by price or ratings", r"sort products by price or ratings", r"sort by price|sort by rating"],
+        "keywords": ["sort products by price or ratings", "sort products by price", "sort by price"],
+        "answer": "Use the 'Sort By' dropdown on the top-right of our Shop to order products.\nSort collection here: /shop",
     },
 
     # F. Cart, wishlist, checkout, and orders
     {
         "id": "F36",
-        "patterns": [
-            r"how do i add a product to my shopping cart",
-            r"add a product to my shopping cart",
-            r"add to shopping cart",
-            r"add to my cart",
-        ],
-        "keywords": ["add a product to my shopping cart", "add a product to my shopping", "shopping cart"],
-        "answer": (
-            "Select your desired size and color on the product page, then click the golden 'Add to Cart' button.\n"
-            "A confirmation tray will appear, and your cart count in the top-right header will update immediately."
-        ),
+        "patterns": [r"how do i add a product to my shopping cart", r"add (a )?product to (my )?shopping cart", r"add to cart"],
+        "keywords": ["add a product to my shopping cart", "add to my shopping cart", "add to shopping cart"],
+        "answer": "Select size and color on any product page, then tap 'Add to Cart'.\nView your shopping bag: /cart",
     },
     {
         "id": "F37",
-        "patterns": [
-            r"can i save products to my wishlist and purchase them later",
-            r"save products to my wishlist and purchase them later",
-            r"save to my wishlist and purchase them later",
-            r"wishlist and purchase them later",
-        ],
-        "keywords": ["wishlist and purchase them later", "save products to my wishlist", "purchase them later"],
-        "answer": (
-            "Yes! Tap the heart icon on any product card or detail page to save it directly to your Wishlist.\n"
-            "You can access and move saved items to your cart anytime from the heart icon in the navigation bar."
-        ),
+        "patterns": [r"can i save products to my wishlist and purchase them later", r"save products to my wishlist", r"wishlist"],
+        "keywords": ["save products to my wishlist", "save to wishlist", "wishlist and purchase"],
+        "answer": "Tap the heart icon on any product to save it to your personal wishlist.\nAccess your wishlist: /wishlist",
     },
     {
         "id": "F38",
-        "patterns": [
-            r"how can i buy a product after selecting its colou?r and size",
-            r"buy a product after selecting its colou?r and size",
-            r"buy a product after selecting",
-            r"after selecting its colou?r and size",
-        ],
-        "keywords": ["after selecting its colour and size", "after selecting its color and size", "buy a product after selecting"],
-        "answer": (
-            "Once your color and size are selected, click 'Add to Cart', open your bag via the Cart icon, and click 'Proceed to Checkout'.\n"
-            "Enter your shipping address and choose your payment method to confirm the purchase."
-        ),
+        "patterns": [r"how can i buy a product after selecting its colou?r and size", r"buy a product after selecting", r"how can i buy"],
+        "keywords": ["buy a product after selecting its colour and size", "buy a product after selecting", "buy a product"],
+        "answer": "Select color and size, click Add to Cart, then Proceed to Checkout.\nGo to checkout: /cart",
     },
     {
         "id": "F39",
-        "patterns": [
-            r"what payment methods are supported at checkout",
-            r"payment methods are supported at checkout",
-            r"payment methods supported at checkout",
-            r"supported at checkout",
-        ],
-        "keywords": ["payment methods are supported at checkout", "payment methods are supported", "supported at checkout"],
-        "answer": (
-            "We accept all major payment methods including UPI (GPay, PhonePe, Paytm), Credit & Debit Cards (Visa, Mastercard, RuPay), and Net Banking.\n"
-            "All transactions are processed through 256-bit encrypted secure gateways."
-        ),
+        "patterns": [r"what payment methods are supported at checkout", r"payment methods (are )?supported", r"payment options"],
+        "keywords": ["payment methods are supported at checkout", "payment methods are supported", "payment methods supported"],
+        "answer": "We accept UPI (GPay, PhonePe), Cards (Visa, Mastercard), and Net Banking.\nProceed to checkout: /cart",
     },
     {
         "id": "F40",
-        "patterns": [
-            r"how can i check the status of my order",
-            r"check the status of my order",
-            r"status of my order",
-            r"order status check",
-        ],
-        "keywords": ["check the status of my order", "status of my order", "check status of my order"],
-        "answer": (
-            "Log into your Zenve account and visit 'My Orders' to see live tracking milestones and courier details for your package.\n"
-            "You will also receive SMS and email tracking links upon dispatch."
-        ),
+        "patterns": [r"how can i check the status of my order", r"status of my order", r"track (my )?order"],
+        "keywords": ["check the status of my order", "status of my order", "track my order"],
+        "answer": "Log into your account and open 'My Orders' for live tracking updates.\nTrack your orders here: /account/orders",
     },
     {
         "id": "F41",
-        "patterns": [
-            r"where can i view my previous orders",
-            r"view my previous orders",
-            r"see my previous orders",
-            r"previous orders view",
-        ],
-        "keywords": ["view my previous orders", "my previous orders", "previous orders"],
-        "answer": (
-            "Click on your profile avatar in the header and select 'My Orders' from the dropdown menu.\n"
-            "There you will find your complete purchase history, past receipts, and reorder options."
-        ),
+        "patterns": [r"where can i view my previous orders", r"view my previous orders", r"past orders|order history"],
+        "keywords": ["view my previous orders", "view previous orders", "previous orders"],
+        "answer": "Access your complete purchase history and receipts under My Orders.\nView order history: /account/orders",
     },
 
     # G. Shipping, returns, and website assistance
     {
         "id": "G42",
-        "patterns": [
-            r"do you offer free shipping across india",
-            r"offer free shipping across india",
-            r"free shipping across india",
-            r"shipping across india",
-        ],
-        "keywords": ["free shipping across india", "shipping across india", "offer free shipping"],
-        "answer": (
-            "Yes, Zenve Fashion offers complimentary standard shipping across India on qualifying orders.\n"
-            "Express courier options are also selectable at checkout for urgent festive occasions."
-        ),
+        "patterns": [r"do you offer free shipping across india", r"free shipping across india", r"free shipping"],
+        "keywords": ["free shipping across india", "offer free shipping", "free shipping"],
+        "answer": "Yes, complimentary standard shipping is provided across India.\nCheck shipping policy: /shipping",
     },
     {
         "id": "G43",
-        "patterns": [
-            r"how long will it take for my order to arrive",
-            r"how long will it take for my order",
-            r"take for my order to arrive",
-            r"how long for order to arrive",
-        ],
-        "keywords": ["how long will it take for my order to arrive", "for my order to arrive", "take for my order to arrive"],
-        "answer": (
-            "Standard delivery takes 3 to 7 business days depending on your location, while Fast Delivery items arrive within 48 to 72 hours.\n"
-            "Estimated arrival dates are displayed on each product page and at checkout."
-        ),
+        "patterns": [r"how long will it take for my order to arrive", r"how long will it take for my order", r"delivery time|shipping time"],
+        "keywords": ["long will it take for my order to arrive", "take for my order to arrive", "order to arrive"],
+        "answer": "Standard delivery arrives in 3 to 7 days, and fast delivery in 48 to 72 hours.\nView delivery details: /shipping",
     },
     {
         "id": "G44",
-        "patterns": [
-            r"can i exchange an outfit if the size does not fit",
-            r"exchange an outfit if the size does not fit",
-            r"if the size does not fit",
-            r"exchange if size does not fit",
-        ],
-        "keywords": ["exchange an outfit if the size does not fit", "if the size does not fit", "exchange an outfit"],
-        "answer": (
-            "Yes! You can initiate a hassle-free size exchange within 7 days of delivery from the 'My Orders' section of your account.\n"
-            "Items must be unworn, in original condition with all designer tags intact."
-        ),
+        "patterns": [r"can i exchange an outfit if the size does not fit", r"exchange an outfit if the size does not fit", r"exchange|return policy"],
+        "keywords": ["exchange an outfit if the size does not fit", "exchange an outfit", "size does not fit"],
+        "answer": "Hassle-free 7-day size exchanges are available in original tag condition.\nView exchange policy: /refund",
     },
     {
         "id": "G45",
-        "patterns": [
-            r"what should i do if my order arrives damaged or i need help with a purchase",
-            r"order arrives damaged or i need help with a purchase",
-            r"order arrives damaged",
-            r"need help with a purchase",
-        ],
-        "keywords": ["order arrives damaged or i need help with a purchase", "order arrives damaged", "need help with a purchase"],
-        "answer": (
-            "Please reach out immediately via our Contact page or email support@zenvefashion.com with your Order ID and photos of the damage.\n"
-            "Our dedicated care team will arrange a prompt priority replacement or full refund."
-        ),
+        "patterns": [r"what should i do if my order arrives damaged or i need help with a purchase", r"order arrives damaged", r"need help with a purchase", r"damaged order"],
+        "keywords": ["order arrives damaged or i need help", "order arrives damaged", "damaged or i need help"],
+        "answer": "Contact our care team with your Order ID for a prompt priority replacement.\nContact support here: /contact",
     },
 ]
 
@@ -1298,25 +917,22 @@ def match_trained_faq(query: str) -> str | None:
 
 
 RESPONSES = {
-    "farewell": ["It was a pleasure styling with you. Come back anytime — Zenve Atelier is always here for you!",
-                 "Goodbye for now! May your wardrobe always feel like you."],
-    "thanks": ["You are most welcome! Is there anything else I can help you style today?",
-               "My pleasure entirely. Anything else you would like to explore?"],
-    "how_are_you": ["I am wonderful, thank you for asking! Surrounded by beautiful fabrics, how could I not be? How can I help you today?",
-                    "Feeling fabulous and ready to style! How are you doing?"],
-    "identity": ["I am Zenve, the virtual style concierge of Zenve Fashion. I am a friendly assistant (not a human) built to help with styling, colours, fabrics, sizing, and finding pieces in our collection."],
-    "capabilities": ["I can help you with:\n• Outfit ideas for any occasion\n• Colour pairing and palettes\n• Fabric guides and garment care\n• Size and fit guidance\n• Finding products by colour, fabric, or budget\n• Twin (human + pet) matching outfits\n• Delivery, returns, and payment questions\n\nWhat would you like to start with?"],
-    "about": ["Zenve Fashion is an artisanal Indian fashion house celebrating handcrafted garments, curated designer collections, and our signature twin sets — matching outfits for you and your beloved pet. We champion slow fashion, skilled artisans, and timeless craftsmanship."],
-    "twin": ["Our signature Twin Collection lets you and your pet step out in coordinated style! Each set mirrors the fabric, colour, and motifs of your outfit in a pet-friendly, comfortable cut. Soft cotton and muslin are wonderful for pets, while silk accents add festive charm.\n\nTell me your pet's size and the occasion, and I can guide you further."],
-    "shipping": ["We dispatch orders as quickly as possible, and products marked Fast Delivery reach you sooner. Exact delivery timelines depend on your location and are shown at checkout. Once shipped, you can follow your order from the My Orders section of your account."],
-    "order": ["For your order status, tracking, or cancellation, please log into your account and open My Orders — you will find the latest updates there. If anything looks off, our support team will gladly help."],
-    "returns": ["Return eligibility depends on the product — each item is marked either Returnable or Final Sale on its product page. For returnable items, you can raise a request from My Orders in your account. Please keep the garment unworn with tags attached."],
-    "payment": ["We support secure online payments at checkout. The available payment methods are shown on the checkout page for your order. If you face any payment issue, please contact our support team."],
-    "contact": ["You can reach our support team through the Contact page on our website. For order-specific help, please log into your account so we can assist you faster."],
-    "compliment": ["You are too kind! It is a joy to help you. What shall we style next?",
-                   "Thank you — that made my day! Anything else on your style wishlist?"],
-    "negative": ["I am sorry I could not help as well as you deserved. Could you rephrase your question? I am best at styling, colours, fabrics, sizing, and finding products — or our support team can help via the Contact page."],
-    "deny": ["No problem at all! Let me know whenever you need styling help."],
+    "farewell": ["It was a pleasure styling with you. Come back anytime!\nExplore our latest arrivals: /shop"],
+    "thanks": ["You are most welcome! Happy to assist you.\nBrowse our collections here: /shop"],
+    "how_are_you": ["I am wonderful, thank you! Ready to help you discover beautiful couture.\nExplore our collections: /shop"],
+    "identity": ["I am Zenve Atelier's personal styling concierge.\nDiscover our designer collections: /shop"],
+    "capabilities": ["I can assist with styling, sizing, fabrics, and finding matching outfits.\nBrowse all products: /shop"],
+    "about": ["Zenve Fashion is India's luxury atelier for people and pets together.\nExplore our collections: /collections"],
+    "pets": ["Handcrafted designer apparel and comfortable accessories for pets.\nExplore the Pets collection: /pets"],
+    "twin": ["Coordinated couture for you and your pet in matching fabrics.\nExplore our Twin collection: /twin"],
+    "shipping": ["Complimentary standard delivery across India within 3 to 7 days.\nCheck our shipping details: /shipping"],
+    "returns": ["Hassle-free 7-day size exchanges on all unworn items.\nReview our return policy: /refund"],
+    "payment": ["We accept all major UPI, Credit/Debit Cards, and Net Banking.\nProceed to checkout: /cart"],
+    "contact": ["Our concierge and support team are delighted to help you.\nReach our team here: /contact"],
+    "order": ["Track live courier milestones and order history anytime.\nView your orders: /account/orders"],
+    "compliment": ["Thank you! It is an absolute pleasure styling for you.\nExplore our newest looks: /shop"],
+    "negative": ["Apologies for any inconvenience. Please let us know how we can help.\nContact our support team: /contact"],
+    "deny": ["No problem at all! Feel free to ask anytime.\nBrowse our collections: /shop"],
 }
 
 FALLBACKS = [
