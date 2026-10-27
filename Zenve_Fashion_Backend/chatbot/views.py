@@ -41,7 +41,7 @@ SYSTEM_PROMPT = """You are Zenve, the personal couture assistant and fashion con
 CRITICAL RULES:
 1. STRICT DOMAIN RESTRICTION: You are exclusively a fashion concierge. You MUST NOT answer any questions outside the fashion domain (e.g. mathematics, coding/programming, general science, politics, news, sports, geography, cooking/recipes, entertainment/gaming, or general trivia).
    - If the user asks about ANYTHING outside fashion, styling, clothing, fabrics, pet apparel, or Zenve, DO NOT answer their question. Refuse with exactly: "I can only assist with fashion, styling, and Zenve collections."
-2. STRICT LINE LIMIT: Your reply MUST NOT exceed 2 lines (maximum 2 lines). Keep your response crisp, elegant, and concise. Never use markdown headers, bullet lists, or long paragraphs.
+2. STRICT LINE LIMIT: Your reply MUST be in just 2 or 3 lines (minimum 2 lines, maximum 3 lines). Keep your response crisp, elegant, and concise. Never use markdown headers, bullet lists, or more than 3 lines.
 
 Your personality:
 - Warm, knowledgeable, and refined - like a trusted personal stylist.
@@ -154,7 +154,7 @@ class ChatbotChatAPIView(APIView):
         trained_ans = match_trained_faq(message)
         if trained_ans:
             return Response(
-                {"reply": enforce_line_limit(trained_ans, max_lines=2), "engine": "trained_faq"},
+                {"reply": enforce_line_limit(trained_ans, max_lines=3, min_lines=2), "engine": "trained_faq"},
                 status=status.HTTP_200_OK,
             )
 
@@ -171,7 +171,7 @@ class ChatbotChatAPIView(APIView):
         if not use_gemini or not api_key:
             reply = local_reply(message, history)
             return Response(
-                {"reply": enforce_line_limit(reply, max_lines=2), "engine": "local"},
+                {"reply": enforce_line_limit(reply, max_lines=3, min_lines=2), "engine": "local"},
                 status=status.HTTP_200_OK,
             )
 
@@ -237,13 +237,13 @@ class ChatbotChatAPIView(APIView):
                 reply_text = "I appreciate your question! Let me connect you with our styling team for the most personalised answer."
 
             # Enforce line limitation
-            reply_text = enforce_line_limit(reply_text, max_lines=2)
+            reply_text = enforce_line_limit(reply_text, max_lines=3, min_lines=2)
             return Response({"reply": reply_text}, status=status.HTTP_200_OK)
 
         except Exception as exc:
             logger.error("Chatbot Gemini error, falling back to local engine: %s", exc, exc_info=True)
             reply = local_reply(message, history)
             return Response(
-                {"reply": enforce_line_limit(reply, max_lines=2), "engine": "local"},
+                {"reply": enforce_line_limit(reply, max_lines=3, min_lines=2), "engine": "local"},
                 status=status.HTTP_200_OK,
             )

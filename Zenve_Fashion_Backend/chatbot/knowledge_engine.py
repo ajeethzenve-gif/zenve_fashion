@@ -284,7 +284,10 @@ def _last_bot_text(history: list) -> str:
 # FASHION DOMAIN FILTER & LINE LIMITER
 # ---------------------------------------------------------------------------
 
-OUT_OF_DOMAIN_REPLY = "I can only assist with fashion, styling, and Zenve collections."
+OUT_OF_DOMAIN_REPLY = (
+    "I can only assist with fashion, styling, and Zenve collections.\n"
+    "Please ask me about our luxury outfits, collections, or sizing advice."
+)
 SUPPORT_TEAM_REPLY = (
     "Please contact our Support Team for further assistance.\n"
     "Phone: +91 98765 43210 | Email: support@zenvefashion.com"
@@ -418,26 +421,34 @@ def is_fashion_domain(message: str, history: list | None = None) -> bool:
 
     return False
 
-def enforce_line_limit(text: str, max_lines: int = 2) -> str:
-    """Ensure the reply strictly does not exceed max_lines lines."""
+def enforce_line_limit(text: str, max_lines: int = 3, min_lines: int = 2) -> str:
+    """Ensure the reply strictly has 2 or 3 lines."""
     if not text:
         return ""
     
     text = text.strip()
     raw_lines = [line.strip() for line in text.split("\n") if line.strip()]
     
-    # If the text already has line breaks, keep at most max_lines
-    if len(raw_lines) > 1:
+    # If text already has 2 or more lines, clamp between min_lines and max_lines
+    if len(raw_lines) >= min_lines:
         return "\n".join(raw_lines[:max_lines]).strip()
     
-    # If single paragraph, split by sentence endings (.!?)
+    # If single line, split by sentence endings (.!?)
     sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+', text) if s.strip()]
-    if len(sentences) > max_lines:
+    if len(sentences) >= min_lines:
         return "\n".join(sentences[:max_lines]).strip()
-    elif len(sentences) > 1:
-        return "\n".join(sentences).strip()
     
-    return text
+    # If single long sentence, try to split at a midpoint punctuation
+    if len(sentences) == 1 and len(text) > 60:
+        mid = len(text) // 2
+        for punct in [', ', '; ', ' - ', ' and ']:
+            idx = text.find(punct, int(mid * 0.7), int(mid * 1.3))
+            if idx != -1:
+                split_idx = idx + len(punct)
+                return f"{text[:split_idx].strip()}\n{text[split_idx:].strip()}"
+    
+    # Ensure at least 2 lines by appending a polite concierge note
+    return f"{text}\nFeel free to explore our collections or ask for styling advice."
 
 # ---------------------------------------------------------------------------
 
@@ -1329,7 +1340,7 @@ def generate_reply(message: str, history: list | None = None) -> str:
     # 1. Check trained FAQ repository (Sections A - G) directly
     trained_ans = match_trained_faq(message)
     if trained_ans:
-        return enforce_line_limit(trained_ans, max_lines=2)
+        return enforce_line_limit(trained_ans, max_lines=3, min_lines=2)
 
     # 2. Enforce strict fashion domain check
     if not is_fashion_domain(message, history):
@@ -1363,12 +1374,12 @@ def generate_reply(message: str, history: list | None = None) -> str:
         if "affirm" in scores and ("look for" in last_bot or "check our collection" in last_bot):
             merged = {**ctx, **ent}
             reply = _shop_reply(merged, tokens)
-            return enforce_line_limit(reply, max_lines=2)
+            return enforce_line_limit(reply, max_lines=3, min_lines=2)
         for k, v in ctx.items():
             ent.setdefault(k, v)
 
     if not scores:
-        return enforce_line_limit(random.choice(FALLBACKS), max_lines=2)
+        return enforce_line_limit(random.choice(FALLBACKS), max_lines=3, min_lines=2)
 
     # Greeting combined with a real question -> answer the question
     if len(scores) > 1:
@@ -1407,4 +1418,4 @@ def generate_reply(message: str, history: list | None = None) -> str:
     else:
         reply = random.choice(FALLBACKS)
 
-    return enforce_line_limit(reply, max_lines=2)
+    return enforce_line_limit(reply, max_lines=3, min_lines=2)
