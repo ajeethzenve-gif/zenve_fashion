@@ -607,7 +607,6 @@ export const ChatbotWidget: React.FC = () => {
                       <img src="/logo/zenve-logo.png" alt="Zenve Fashion Crest" className="w-full h-full object-contain drop-shadow-[0_1px_4px_rgba(228,189,90,0.4)]" />
                     </div>
                   </div>
-                  <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-[#002B1D]" />
                 </div>
                 <div>
                   <div className="flex items-center space-x-1.5">
@@ -738,9 +737,6 @@ export const ChatbotWidget: React.FC = () => {
             aria-label={isOpen ? 'Close Concierge Chat' : 'Open Zenve Atelier Concierge Chatbot'}
           >
             <span className="absolute inset-0 rounded-full border border-[#E4BD5A]/30 animate-ping pointer-events-none opacity-40" />
-            <span className="absolute top-0 right-0 w-3.5 h-3.5 rounded-full bg-emerald-400 border-2 border-[#001C13] shadow-[0_0_8px_rgba(52,211,153,0.8)] flex items-center justify-center">
-              <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-            </span>
             <div className="relative flex items-center justify-center transition-transform duration-300">
               {isOpen ? (
                 <ChevronDown className="w-6 h-6 text-[#E4BD5A] transform transition-transform group-hover:translate-y-0.5" />
