@@ -47,6 +47,347 @@ const QUICK_SUGGESTIONS = [
   'Pet Outfits',
 ];
 
+const OUT_OF_DOMAIN_REPLY =
+  'I can only assist with fashion, styling, and Zenve collections.\nPlease ask me about our luxury outfits, collections, or sizing advice.';
+
+const SUPPORT_TEAM_REPLY =
+  'Please contact our Support Team for further assistance.\nPhone: +91 98765 43210 | Email: support@zenvefashion.com';
+
+const NON_FASHION_PATTERNS = [
+  /\b(python|javascript|typescript|java|c\+\+|c#|golang|rust|php|ruby|swift|kotlin|html|css|sql|nosql|mongodb|react|vue|angular|svelte|nextjs|django|flask|fastapi|spring|node|nodejs|express|docker|kubernetes|linux|ubuntu|windows|bash|shell|powershell|git|github|gitlab)\b/i,
+  /\b(code|coding|programmer|programming|software|developer|develop|development|algorithm|data structure|function|variable|debug|debugging|bug|bugs|script|scripting|compile|compiler|database|server|backend|frontend|api|rest api|endpoint|sdk|terminal|ide|npm|pip)\b/i,
+  /\b(solve|calculate|calculation|calculator|math|maths|mathematics|equation|formula|arithmetic|algebra|geometry|calculus|trigonometry|derivative|integral|multiplication|percentage of|sum of|square root)\b/i,
+  /\d+\s*[\+\-\*\/%^=]\s*\d+/,
+  /\b(physics|chemistry|biology|chemical|chemicals|synthesize|synthesized|petroleum|quantum|gravity|atom|molecule|periodic table|photosynthesis|dna|rna|cellular|relativity|thermodynamics|newton|einstein|planet|planets|solar system|galaxy|universe|black hole|astronomy|telescope|mars|moon|nasa|isro)\b/i,
+  /\b(symptom|symptoms|disease|illness|infection|virus|bacteria|diagnos|diagnosis|medicine for|cure for|fever|cough|headache|cancer|diabetes|hospital|prescription)\b/i,
+  /\b(president|prime minister|chief minister|parliament|congress|bjp|democrat|republican|senate|senator|election|elections|vote|voting|ballot|political|politics|politician|constitution|democracy|treaty|united nations|war|military|army|naval|air force|missile)\b/i,
+  /\b(cricket|football|soccer|fifa|ipl|tennis|basketball|nba|badminton|olympics|world cup|messi|ronaldo|virat|kohli|dhoni|sachin|goal|wicket|tournament|match score)\b/i,
+  /\b(recipe|recipes|how to cook|ingredients|bake|baking|biryani|curry|pasta|pizza|burger|sandwich|soup|salad|dessert|roast|culinary|chef)\b/i,
+  /\b(story|stories|poem|poems|poetry|essay|essays|riddle|riddles|lyrics|article|movie|movies|film|films|cinema|actor|actress|hollywood|bollywood|netflix|series|episode|anime|manga|singer|music track|album|game|gaming|playstation|xbox|minecraft)\b/i,
+  /\b(cryptocurrency|crypto|bitcoin|ethereum|btc|eth|stocks|stock market|shares|mutual fund|forex|investing|investment|trading|loan|mortgage|interest rate|fixed deposit|bank account)\b/i,
+  /\b(capital of|population of|distance (from|to|between)|speed of light|weather in|temperature in|forecast for|who (invented|discovered|wrote|directed|created|painted|founded))\b/i,
+];
+
+const TRAINED_FAQS: { patterns: RegExp[]; keywords: string[]; answer: string }[] = [
+  {
+    patterns: [/what is zenve/i, /what makes (it|zenve) different/i, /about zenve fashion/i, /why choose zenve/i, /difference between zenve and other/i],
+    keywords: ['zenve', 'different', 'brand', 'website', 'what is zenve'],
+    answer: "Zenve Fashion is India's luxury couture atelier for people and pets together.\nExplore our brand story and collections: /collections",
+  },
+  {
+    patterns: [/what types of products can i buy/i, /what (products|items) (can i buy|do you sell|are available)/i, /what do you sell/i, /product categories/i],
+    keywords: ['types of products', 'can i buy', 'what do you sell', 'products can i buy'],
+    answer: 'Shop ethnic & contemporary wear, handcrafted pet apparel, and Twin sets.\nBrowse our full catalog: /shop',
+  },
+  {
+    patterns: [/difference between people,? pets,? and twin/i, /what is (the )?difference between people,? pets/i, /people vs pets vs twin/i, /explain people pets twin/i],
+    keywords: ['difference between people', 'pets and twin', 'people pets twin'],
+    answer: 'People has human couture, Pets has pet wear, and Twin coordinates both.\nExplore our Twin collection: /twin',
+  },
+  {
+    patterns: [/how (can|do) i explore all (the )?collections/i, /explore all collections/i, /browse (all )?collections/i, /where can i see all collections/i],
+    keywords: ['explore all collections', 'explore the collections', 'browse all collections'],
+    answer: 'Use our top navigation bar or filter by collection on our Shop page.\nExplore all collections here: /collections',
+  },
+  {
+    patterns: [/does zenve (fashion )?offer designer outfits for both people and pets/i, /designer outfits for both people and pets/i, /designer (wear|clothes|outfits) for (both )?people and pets/i],
+    keywords: ['designer outfits for both', 'people and pets', 'outfits for both people'],
+    answer: 'Yes, our ateliers craft bespoke luxury couture for humans and their pets.\nDiscover outfits for both: /collections',
+  },
+  {
+    patterns: [/what products are currently available in the people collection/i, /products in (the )?people collection/i, /people collection (items|products|clothes)/i, /show me people collection/i],
+    keywords: ['people collection', 'products in people', 'available in people'],
+    answer: 'Handcrafted silk sarees, designer lehengas, kurtas, and modern silhouettes.\nBrowse the People collection: /people',
+  },
+  {
+    patterns: [/recommend a stylish outfit for a wedding/i, /wedding (outfit|wear|dress|clothes|lehenga)/i, /what to wear to a wedding/i, /wedding guest outfit/i],
+    keywords: ['outfit for a wedding', 'wedding outfit', 'wedding wear', 'wedding clothes'],
+    answer: 'Opulent silk lehengas and royal sherwanis in emerald, maroon, and gold.\nExplore wedding couture: /shop?occasion=Wedding',
+  },
+  {
+    patterns: [/what should i wear for an evening party/i, /evening party (outfit|wear|dress)/i, /party wear outfit/i, /party wear/i],
+    keywords: ['evening party', 'party wear', 'party outfit', 'wear for an evening party'],
+    answer: 'Shimmering georgette sarees, velvet evening gowns, and sleek blazers.\nDiscover party styles: /shop?occasion=Party',
+  },
+  {
+    patterns: [/outfits would you recommend for everyday use/i, /everyday (use|wear|outfits|clothing)/i, /casual (wear|outfits|clothes)/i, /daily wear/i],
+    keywords: ['everyday use', 'everyday wear', 'casual wear', 'daily wear'],
+    answer: 'Breathable pure cotton kurtas, soft linen shirts, and relaxed co-ords.\nBrowse everyday wear: /shop?occasion=Everyday',
+  },
+  {
+    patterns: [/festive clothing suitable for indian celebrations/i, /festive (clothing|wear|outfits)/i, /indian celebrations/i, /diwali|eid|puja outfits/i],
+    keywords: ['festive clothing', 'indian celebrations', 'festive wear', 'festive outfits'],
+    answer: 'Hand-embroidered chanderi kurtas, brocade lehengas, and silk kurtas.\nShop festive collection: /shop?occasion=Festive',
+  },
+  {
+    patterns: [/clothing options are suitable for workwear/i, /workwear (options|clothing|outfits)/i, /office wear/i, /formal (wear|clothing)/i],
+    keywords: ['suitable for workwear', 'workwear', 'office wear', 'formal wear'],
+    answer: 'Crisp linen shirts, tailored cotton kurtis, and minimalist trousers.\nExplore workwear: /shop?occasion=Workwear',
+  },
+  {
+    patterns: [/recommend outfits for a holiday or resort vacation/i, /holiday or resort (vacation|outfits)/i, /resort wear/i, /vacation (outfits|clothes)/i],
+    keywords: ['holiday or resort vacation', 'resort wear', 'vacation outfits', 'holiday outfits'],
+    answer: 'Breezy printed resort shirts, airy cotton dresses, and flowy kaftans.\nExplore vacation styles: /shop?occasion=Resort',
+  },
+  {
+    patterns: [/clothing suitable for winter or monsoon weather/i, /winter or monsoon (weather|clothing)/i, /winter (wear|clothes)/i, /monsoon (wear|clothes)/i],
+    keywords: ['winter or monsoon weather', 'winter clothing', 'monsoon clothing'],
+    answer: 'Plush velvet bandhgalas for winter and quick-dry cottons for monsoon.\nShop winter styles: /shop?occasion=Winter',
+  },
+  {
+    patterns: [/what accessories are available for pets/i, /pet accessories/i, /accessories for pets/i, /accessories for (my )?(dog|cat)/i],
+    keywords: ['accessories are available for pets', 'pet accessories', 'accessories for pets'],
+    answer: 'Handcrafted silk bowties, printed bandanas, festive collars, and leashes.\nView pet accessories: /pets?occasion=Accessories',
+  },
+  {
+    patterns: [/stylish outfit for my dog for a special occasion/i, /outfit for my dog/i, /dog (outfit|clothes|wear)/i, /dress (my )?dog/i],
+    keywords: ['outfit for my dog', 'dog for a special occasion', 'dog outfit'],
+    answer: 'Embroidered pet sherwanis, festive silk bandanas, and tailored tuxedos.\nDiscover dog wedding wear: /pets?occasion=Wedding',
+  },
+  {
+    patterns: [/what is twin fashion,? and how does it work/i, /what is twin fashion/i, /how does twin fashion work/i, /explain twin fashion/i, /^twin collection$/i, /twin collections?/i],
+    keywords: ['what is twin fashion', 'twin fashion', 'how does it work', 'twin collection'],
+    answer: 'Coordinated couture pairing human outfits with matching pet apparel.\nExplore our Twin collection: /twin',
+  },
+  {
+    patterns: [/matching outfits for me and my dog/i, /matching outfit for (me and my dog|dog and me)/i, /twin outfits for dog/i],
+    keywords: ['matching outfits for me and my dog', 'outfits for me and my dog', 'me and my dog'],
+    answer: 'Identical fabrics, festive prints, and colors tailored for you and your dog.\nView matching dog sets: /twin',
+  },
+  {
+    patterns: [/coordinated outfits for people and cats/i, /matching outfits for (people and cats|cat and me)/i, /cat twin outfits/i],
+    keywords: ['coordinated outfits for people and cats', 'people and cats', 'outfits for people and cats'],
+    answer: 'Lightweight skin-safe bandanas and capes paired with human attire.\nView cat coordinated sets: /twin',
+  },
+  {
+    patterns: [/matching outfits for a festive photoshoot/i, /festive photoshoot (outfits|twin)/i, /photoshoot matching outfits/i],
+    keywords: ['matching outfits for a festive photoshoot', 'festive photoshoot', 'photoshoot outfits'],
+    answer: 'Heritage brocade and zari motifs created for picture-perfect memories.\nExplore photoshoot twin sets: /twin',
+  },
+  {
+    patterns: [/coordinate my outfit with my pet without looking too similar/i, /without looking too similar/i, /subtle matching with pet/i],
+    keywords: ['without looking too similar', 'coordinate my outfit with my pet', 'coordinate with my pet'],
+    answer: "Match a pocket square or scarf to your pet's collar instead of full prints.\nExplore Twin collection: /twin",
+  },
+  {
+    patterns: [/twin collection would be suitable for a wedding or celebration/i, /twin collection for a wedding/i, /wedding twin collection/i],
+    keywords: ['suitable for a wedding or celebration', 'twin collection would be suitable', 'wedding or celebration'],
+    answer: 'Royal silk sherwanis and lehengas paired with matching pet waistcoats.\nView wedding Twin sets: /twin?occasion=Wedding',
+  },
+  {
+    patterns: [/what material is this product made from/i, /what (material|fabric) is (this|the) product made from/i, /product fabric|product material/i],
+    keywords: ['material is this product made from', 'what material is this product', 'fabric is this product'],
+    answer: 'Crafted from mulberry silk, breathable cotton, chanderi, and velvet.\nView fabric details on products: /shop',
+  },
+  {
+    patterns: [/what sizes are available for this outfit/i, /sizes available for this outfit/i, /available sizes/i],
+    keywords: ['sizes are available for this outfit', 'sizes are available', 'what sizes are available'],
+    answer: 'People sizing spans XS through XXL; pet sizing spans XS through XXL.\nView our full sizing guide: /size-guide',
+  },
+  {
+    patterns: [/does this product come in different colou?rs/i, /different colou?rs available/i, /colou?r options/i],
+    keywords: ['different colours', 'different colors', 'product come in different'],
+    answer: 'Yes, available colourways are displayed as color chips on product cards.\nBrowse all shades on: /shop',
+  },
+  {
+    patterns: [/how do i choose the correct size for myself/i, /choose the correct size for myself/i, /size guide for (me|human|people)/i],
+    keywords: ['choose the correct size for myself', 'correct size for myself', 'size for myself'],
+    answer: 'Compare your bust, waist, and hip measurements with our Size Guide.\nView our complete sizing guide: /size-guide',
+  },
+  {
+    patterns: [/how can i measure my pet before ordering clothes/i, /measure my pet/i, /pet sizing guide/i, /measuring (dog|cat|pet)/i],
+    keywords: ['measure my pet before ordering', 'measure my pet', 'measuring my pet'],
+    answer: 'Measure neck girth, chest circumference, and collar-to-tail length.\nCheck pet measurement guide: /size-guide',
+  },
+  {
+    patterns: [/will this pet outfit allow my dog to move comfortably/i, /allow my dog to move comfortably/i, /dog comfort|comfortable pet clothes/i],
+    keywords: ['allow my dog to move comfortably', 'move comfortably', 'comfortable for my dog'],
+    answer: 'Yes, our pet garments feature stretch gussets for full mobility and comfort.\nExplore comfortable pet wear: /pets',
+  },
+  {
+    patterns: [/can i see more pictures and details of a product before purchasing/i, /more pictures and details/i, /product pictures|product photos/i],
+    keywords: ['more pictures and details of a product', 'more pictures and details', 'pictures of a product'],
+    answer: 'Every product page features multi-angle high-res zoomable photos.\nInspect product details on: /shop',
+  },
+  {
+    patterns: [/does the price change depending on the selected size/i, /price change depending on (the selected )?size/i, /size price difference/i],
+    keywords: ['price change depending on the selected size', 'price change depending on', 'price change by size'],
+    answer: 'Standard ready-to-wear sizes XS to XXL are priced identically.\nView product prices: /shop',
+  },
+  {
+    patterns: [/what is the price of this product/i, /product price/i, /how much does this cost/i],
+    keywords: ['price of this product', 'what is the price', 'cost of this product'],
+    answer: 'Prices in INR (inclusive of all taxes) are clearly marked on each card.\nBrowse product pricing: /shop',
+  },
+  {
+    patterns: [/are there any discounts available on this outfit/i, /discounts available/i, /coupons|promo codes/i],
+    keywords: ['discounts available on this outfit', 'discounts available', 'any discounts available'],
+    answer: 'Active seasonal promotional codes are displayed on our top banner.\nShop discounted styles: /shop',
+  },
+  {
+    patterns: [/can you show me products within my budget of (inr|rs|₹)?\s*2,?000/i, /budget of (inr|rs|₹)?\s*2,?000/i, /under 2000/i],
+    keywords: ['budget of 2,000', 'budget of 2000', 'under 2000', 'under ₹2,000'],
+    answer: 'Discover pet bandanas, bowties, cotton dupattas, and accessories under ₹2,000.\nFilter budget products: /shop',
+  },
+  {
+    patterns: [/which products are currently in stock/i, /currently in stock/i, /in stock products/i],
+    keywords: ['products are currently in stock', 'currently in stock', 'in stock'],
+    answer: "All items with an active 'Add to Cart' button are in stock for fast dispatch.\nView in-stock collection: /shop",
+  },
+  {
+    patterns: [/can i find similar products at a lower price/i, /similar products at a lower price/i, /cheaper alternative/i],
+    keywords: ['similar products at a lower price', 'similar products lower price', 'lower price'],
+    answer: "Check 'Similar Styles' on any item, or sort our shop by Price: Low to High.\nBrowse affordable pieces: /shop",
+  },
+  {
+    patterns: [/how can i sort products by price or ratings/i, /sort products by price or ratings/i, /sort by price|sort by rating/i],
+    keywords: ['sort products by price or ratings', 'sort products by price', 'sort by price'],
+    answer: "Use the 'Sort By' dropdown on the top-right of our Shop to order products.\nSort collection here: /shop",
+  },
+  {
+    patterns: [/how do i add a product to my shopping cart/i, /add (a )?product to (my )?shopping cart/i, /add to cart/i],
+    keywords: ['add a product to my shopping cart', 'add to my shopping cart', 'add to shopping cart'],
+    answer: "Select size and color on any product page, then tap 'Add to Cart'.\nView your shopping bag: /cart",
+  },
+  {
+    patterns: [/can i save products to my wishlist and purchase them later/i, /save products to my wishlist/i, /wishlist/i],
+    keywords: ['save products to my wishlist', 'save to wishlist', 'wishlist and purchase'],
+    answer: 'Tap the heart icon on any product to save it to your personal wishlist.\nAccess your wishlist: /wishlist',
+  },
+  {
+    patterns: [/how can i buy a product after selecting its colou?r and size/i, /buy a product after selecting/i, /how can i buy/i],
+    keywords: ['buy a product after selecting its colour and size', 'buy a product after selecting', 'buy a product'],
+    answer: 'Select color and size, click Add to Cart, then Proceed to Checkout.\nGo to checkout: /cart',
+  },
+  {
+    patterns: [/what payment methods are supported at checkout/i, /payment methods (are )?supported/i, /payment options/i],
+    keywords: ['payment methods are supported at checkout', 'payment methods are supported', 'payment methods supported'],
+    answer: 'We accept UPI (GPay, PhonePe), Cards (Visa, Mastercard), and Net Banking.\nProceed to checkout: /cart',
+  },
+  {
+    patterns: [/how can i check the status of my order/i, /status of my order/i, /track (my )?order/i],
+    keywords: ['check the status of my order', 'status of my order', 'track my order'],
+    answer: "Log into your account and open 'My Orders' for live tracking updates.\nTrack your orders here: /account/orders",
+  },
+  {
+    patterns: [/where can i view my previous orders/i, /view my previous orders/i, /past orders|order history/i],
+    keywords: ['view my previous orders', 'view previous orders', 'previous orders'],
+    answer: 'Access your complete purchase history and receipts under My Orders.\nView order history: /account/orders',
+  },
+  {
+    patterns: [/do you offer free shipping across india/i, /free shipping across india/i, /free shipping/i],
+    keywords: ['free shipping across india', 'offer free shipping', 'free shipping'],
+    answer: 'Yes, complimentary standard shipping is provided across India.\nCheck shipping policy: /shipping',
+  },
+  {
+    patterns: [/how long will it take for my order to arrive/i, /how long will it take for my order/i, /delivery time|shipping time/i],
+    keywords: ['long will it take for my order to arrive', 'take for my order to arrive', 'order to arrive'],
+    answer: 'Standard delivery arrives in 3 to 7 days, and fast delivery in 48 to 72 hours.\nView delivery details: /shipping',
+  },
+  {
+    patterns: [/can i exchange an outfit if the size does not fit/i, /exchange an outfit if the size does not fit/i, /exchange|return policy/i],
+    keywords: ['exchange an outfit if the size does not fit', 'exchange an outfit', 'size does not fit'],
+    answer: 'Hassle-free 7-day size exchanges are available in original tag condition.\nView exchange policy: /refund',
+  },
+  {
+    patterns: [/what should i do if my order arrives damaged or i need help with a purchase/i, /order arrives damaged/i, /need help with a purchase/i, /damaged order/i],
+    keywords: ['order arrives damaged or i need help', 'order arrives damaged', 'damaged or i need help'],
+    answer: 'Contact our care team with your Order ID for a prompt priority replacement.\nContact support here: /contact',
+  },
+];
+
+function getOfflineFallbackReply(message: string, history: HistoryEntry[]): string {
+  const priorUserQuestions = history.filter((h) => h.role === 'user').length;
+  if (priorUserQuestions >= 2) {
+    return SUPPORT_TEAM_REPLY;
+  }
+
+  const q = message.toLowerCase().trim();
+  const cleanQ = q.replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+
+  for (const faq of TRAINED_FAQS) {
+    if (faq.patterns.some((p) => p.test(cleanQ))) {
+      return faq.answer;
+    }
+  }
+
+  let bestFaq: { answer: string } | null = null;
+  let bestScore = 0;
+  for (const faq of TRAINED_FAQS) {
+    let score = 0;
+    for (const kw of faq.keywords) {
+      if (cleanQ.includes(kw)) {
+        score += kw.split(' ').length * 3;
+      }
+    }
+    if (score > bestScore && score >= 4) {
+      bestScore = score;
+      bestFaq = faq;
+    }
+  }
+  if (bestFaq) {
+    return bestFaq.answer;
+  }
+
+  if (NON_FASHION_PATTERNS.some((pat) => pat.test(q))) {
+    return OUT_OF_DOMAIN_REPLY;
+  }
+
+  if (/\b(twin|matching|match my pet|coordinated)\b/.test(cleanQ)) {
+    if (/\bwedding\b/.test(cleanQ)) {
+      return 'Royal silk sherwanis and lehengas paired with matching pet waistcoats.\nView wedding Twin sets: /twin?occasion=Wedding';
+    }
+    return 'Coordinated couture pairing human outfits with matching pet apparel.\nExplore our Twin collection: /twin';
+  }
+  if (/\b(pet|pets|dog|cat|puppy|kitten|collar|leash|bandana)\b/.test(cleanQ)) {
+    if (/\b(accessor|collar|leash|bandana|bowtie)\b/.test(cleanQ)) {
+      return 'Handcrafted silk bowties, printed bandanas, festive collars, and leashes.\nView pet accessories: /pets?occasion=Accessories';
+    }
+    return 'Handcrafted designer apparel and comfortable accessories for pets.\nExplore the Pets collection: /pets';
+  }
+  if (/\b(size|sizing|fit|fitting|measurement|measure|chart)\b/.test(cleanQ)) {
+    return 'Comprehensive measurement charts for human couture and companion pets.\nView our complete sizing guide: /size-guide';
+  }
+  if (/\b(colou?r|palette|shade|maroon|emerald|gold|ivory|blue|red|pink|green|yellow|black|white)\b/.test(cleanQ)) {
+    return 'Warm tones glow in mustard and rust, while cool tones shine in emerald and sapphire.\nExplore curated color edits: /showroom';
+  }
+  if (/\b(wedding|marriage|shaadi|reception|haldi|mehendi|sangeet)\b/.test(cleanQ)) {
+    return 'Opulent silk lehengas and royal sherwanis in emerald, maroon, and gold.\nExplore wedding couture: /shop?occasion=Wedding';
+  }
+  if (/\b(party|cocktail|evening)\b/.test(cleanQ)) {
+    return 'Shimmering georgette sarees, velvet evening gowns, and sleek blazers.\nDiscover party styles: /shop?occasion=Party';
+  }
+  if (/\b(festiv|diwali|navratri|eid|puja|pooja)\b/.test(cleanQ)) {
+    return 'Hand-embroidered chanderi kurtas, brocade lehengas, and silk kurtas.\nShop festive collection: /shop?occasion=Festive';
+  }
+  if (/\b(occasion|styling|wear|outfit|dress|showroom)\b/.test(cleanQ)) {
+    return 'Discover couture edits for weddings, festive galas, and evening soirées.\nExplore our occasion showroom: /showroom';
+  }
+  if (/\b(fabric|silk|cotton|linen|chanderi|georgette|velvet|wash|care)\b/.test(cleanQ)) {
+    return 'We handcraft our couture in pure silk, breathable cotton, and chanderi.\nBrowse by fabric here: /shop';
+  }
+  if (/\b(order|delivery|shipping|ship|track|tracking|dispatch|arrive)\b/.test(cleanQ)) {
+    return 'Track live package milestones, or review our express delivery timelines.\nTrack orders: /account/orders | Shipping policy: /shipping';
+  }
+  if (/\b(return|refund|exchange)\b/.test(cleanQ)) {
+    return 'Hassle-free 7-day size exchanges are available in original tag condition.\nView exchange policy: /refund';
+  }
+  if (/\b(people|men|women|saree|lehenga|kurta|sherwani)\b/.test(cleanQ)) {
+    return 'Handcrafted silk sarees, designer lehengas, kurtas, and modern silhouettes.\nBrowse the People collection: /people';
+  }
+  if (/\b(collection|collections|explore|browse|shop|product|products|buy)\b/.test(cleanQ)) {
+    return 'Use our top navigation bar or filter by collection on our Shop page.\nExplore all collections here: /collections';
+  }
+  if (/\b(hi|hello|hey|namaste|good morning|good afternoon|good evening|thanks|thank)\b/.test(cleanQ)) {
+    return 'Welcome to Zenve Atelier! I am your personal couture stylist and concierge.\nExplore our luxury collections: /collections';
+  }
+  if (/\b(contact|support|help|phone|email)\b/.test(cleanQ)) {
+    return 'Our concierge and support team are delighted to help you.\nReach our team here: /contact';
+  }
+
+  return OUT_OF_DOMAIN_REPLY;
+}
+
 function extractPageUrls(text: string): { path: string; label: string }[] {
   const regex = /(\/(?:twin|people|pets|shop|collections|cart|wishlist|account\/orders|contact|shipping|refund|size-guide|showroom)[a-zA-Z0-9_\-\/?=]*)/gi;
   const matches = Array.from(text.matchAll(regex));
@@ -184,19 +525,24 @@ export const ChatbotWidget: React.FC = () => {
 
       conversationHistory.current = [
         ...conversationHistory.current,
-        { role: 'assistant', content: replyText },
+        { role: 'assistant' as const, content: replyText },
       ].slice(-10);
     } catch {
+      const fallbackReply = getOfflineFallbackReply(trimmed, historySnapshot);
       setMessages((prev) => [
         ...prev,
         {
-          id: `err-${Date.now()}`,
+          id: `bot-fallback-${Date.now()}`,
           sender: 'bot',
-          text: 'My sincerest apologies — our concierge is experiencing a brief moment of quietude. Please try again shortly.',
+          text: fallbackReply,
           timestamp: formatTimestamp(),
-          isError: true,
         },
       ]);
+
+      conversationHistory.current = [
+        ...conversationHistory.current,
+        { role: 'assistant' as const, content: fallbackReply },
+      ].slice(-10);
     } finally {
       setIsTyping(false);
       setTimeout(() => inputRef.current?.focus(), 50);

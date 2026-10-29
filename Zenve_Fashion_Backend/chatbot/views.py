@@ -130,6 +130,7 @@ class ChatbotChatAPIView(APIView):
     Powers the Zenve Fashion AI concierge with strict fashion domain & line limits.
     """
 
+    authentication_classes = []
     permission_classes = [AllowAny]
 
     def post(self, request):
